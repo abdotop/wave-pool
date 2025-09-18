@@ -10,7 +10,27 @@ import (
 
 type Querier interface {
 	CreateCheckoutSession(ctx context.Context, arg CreateCheckoutSessionParams) error
+	// Secrets CRUD
+	CreateSecret(ctx context.Context, arg CreateSecretParams) error
+	// Sessions CRUD
+	CreateSession(ctx context.Context, arg CreateSessionParams) error
+	// Users CRUD
+	CreateUser(ctx context.Context, arg CreateUserParams) error
+	DeleteExpiredSessions(ctx context.Context, expiresAt string) error
+	DeleteSecret(ctx context.Context, id string) error
+	DeleteSession(ctx context.Context, id string) error
+	DeleteUser(ctx context.Context, id string) error
 	GetCheckoutSession(ctx context.Context, id string) (CheckoutSession, error)
+	GetSecretByHash(ctx context.Context, secretHash string) (Secret, error)
+	GetSecretByID(ctx context.Context, id string) (Secret, error)
+	GetSession(ctx context.Context, id string) (Session, error)
+	GetUserByID(ctx context.Context, id string) (User, error)
+	GetUserByPhone(ctx context.Context, phoneNumber string) (User, error)
+	ListSecretsByUser(ctx context.Context, arg ListSecretsByUserParams) ([]Secret, error)
+	ListSessionsByUser(ctx context.Context, arg ListSessionsByUserParams) ([]Session, error)
+	ListUsers(ctx context.Context, arg ListUsersParams) ([]User, error)
+	RevokeSecret(ctx context.Context, arg RevokeSecretParams) error
+	UpdateUserPinHash(ctx context.Context, arg UpdateUserPinHashParams) error
 }
 
 var _ Querier = (*Queries)(nil)

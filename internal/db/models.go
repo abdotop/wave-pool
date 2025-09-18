@@ -30,3 +30,28 @@ type CheckoutSession struct {
 	LastPaymentErrorCode    sql.NullString
 	LastPaymentErrorMessage sql.NullString
 }
+
+type Secret struct {
+	ID          string
+	UserID      string
+	SecretHash  string
+	SecretType  string
+	Permissions string
+	DisplayHint string
+	CreatedAt   string
+	RevokedAt   sql.NullString
+}
+
+type Session struct {
+	ID        string
+	UserID    string
+	ExpiresAt string
+	CreatedAt string
+}
+
+type User struct {
+	ID          string
+	PhoneNumber string
+	PinHash     string
+	CreatedAt   string
+}
