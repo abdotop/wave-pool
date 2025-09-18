@@ -1,15 +1,21 @@
 package server
 
 import (
+	"bytes"
 	"cmp"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -309,6 +315,21 @@ type createSecretResponse struct {
 	APIKey   string `json:"api_key"`
 }
 
+// Webhook management types
+type createWebhookRequest struct {
+	URL              string   `json:"url"`
+	EventTypes       []string `json:"event_types"`
+	SecurityStrategy *string  `json:"security_strategy,omitempty"`
+}
+
+type createWebhookResponse struct {
+	WebhookID        string   `json:"webhook_id"`
+	URL              string   `json:"url"`
+	EventTypes       []string `json:"event_types"`
+	SecurityStrategy string   `json:"security_strategy"`
+	WebhookSecret    string   `json:"webhook_secret"`
+}
+
 // HandleCreateSecret POST /v1/secrets
 func (s *server) HandleCreateSecret(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -430,6 +451,136 @@ func (s *server) HandleRevokeSecret(w http.ResponseWriter, r *http.Request) {
 
 	// Return 204 No Content
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// HandleCreateWebhook POST /v1/webhooks
+func (s *server) HandleCreateWebhook(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// Get user ID from context (set by session middleware)
+	userID, ok := GetUserIDFromContext(ctx)
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	var req createWebhookRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid json", http.StatusBadRequest)
+		return
+	}
+
+	// Validate required fields
+	if req.URL == "" {
+		http.Error(w, "url is required", http.StatusBadRequest)
+		return
+	}
+	if len(req.EventTypes) == 0 {
+		http.Error(w, "at least one event type is required", http.StatusBadRequest)
+		return
+	}
+
+	// Validate and default security strategy
+	securityStrategy := permission.StrategySigningSecret // Default
+	if req.SecurityStrategy != nil {
+		if !permission.IsValidSecurityStrategy(*req.SecurityStrategy) {
+			http.Error(w, "invalid security_strategy", http.StatusBadRequest)
+			return
+		}
+		securityStrategy = *req.SecurityStrategy
+	}
+
+	// Generate webhook secret (this will be the actual secret, not hashed for webhooks)
+	webhookSecret, err := utils.NewWebhookSecret()
+	if err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	// For webhook secrets, we store the actual secret (not hashed) since we need to use it for signing
+	// This is different from API keys which are hashed for security
+	webhookID := ksuid.New().String()
+	eventTypesJSON, err := json.Marshal(req.EventTypes)
+	if err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	if err := s.query.CreateSecret(ctx, db.CreateSecretParams{
+		ID:          webhookID,
+		UserID:      userID,
+		SecretHash:  webhookSecret, // Store plaintext for webhooks (encrypted at rest by SQLite)
+		SecretType:  "WEBHOOK_SECRET",
+		Permissions: string(eventTypesJSON),
+		DisplayHint: req.URL,
+		SecurityStrategy: sql.NullString{
+			String: securityStrategy,
+			Valid:  true,
+		},
+	}); err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	// Return the webhook details including the secret (only time it's shown)
+	resp := createWebhookResponse{
+		WebhookID:        webhookID,
+		URL:              req.URL,
+		EventTypes:       req.EventTypes,
+		SecurityStrategy: securityStrategy,
+		WebhookSecret:    webhookSecret,
+	}
+	utils.WriteJSON(w, http.StatusCreated, resp)
+}
+
+// HandleTestWebhook POST /v1/webhooks/{webhook_id}/test
+func (s *server) HandleTestWebhook(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// Get user ID from context (set by session middleware)
+	userID, ok := GetUserIDFromContext(ctx)
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	// Extract webhook ID from URL path
+	webhookID := r.PathValue("id")
+	if webhookID == "" {
+		http.Error(w, "invalid webhook ID", http.StatusBadRequest)
+		return
+	}
+
+	// Get the webhook secret to verify ownership
+	secret, err := s.query.GetSecretByID(ctx, webhookID)
+	if err != nil {
+		http.Error(w, "webhook not found", http.StatusNotFound)
+		return
+	}
+
+	// Verify the webhook belongs to the logged-in user
+	if secret.UserID != userID {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+
+	// Verify it's a webhook secret
+	if secret.SecretType != "WEBHOOK_SECRET" {
+		http.Error(w, "not a webhook secret", http.StatusBadRequest)
+		return
+	}
+
+	// Check if webhook is revoked
+	if secret.RevokedAt.Valid {
+		http.Error(w, "webhook is revoked", http.StatusConflict)
+		return
+	}
+
+	// Send test webhook asynchronously
+	go s.sendTestWebhook(secret)
+
+	// Return success immediately
+	w.WriteHeader(http.StatusOK)
 }
 
 // Context key for storing permissions in request context
@@ -968,4 +1119,105 @@ func (s *server) HandleRefundCheckoutSession(w http.ResponseWriter, r *http.Requ
 
 	// Return 200 OK with empty body
 	w.WriteHeader(http.StatusOK)
+}
+
+// Event represents a webhook event structure
+type Event struct {
+	ID   string      `json:"id"`
+	Type string      `json:"type"`
+	Data interface{} `json:"data"`
+}
+
+// sendTestWebhook sends a test webhook event
+func (s *server) sendTestWebhook(secret db.Secret) {
+	// Create a test event
+	testEvent := Event{
+		ID:   "EV_" + utils.GenerateRandomID(12),
+		Type: "webhook.test",
+		Data: map[string]string{
+			"test_message": "This is a test webhook event",
+			"timestamp":    time.Now().UTC().Format(time.RFC3339),
+		},
+	}
+
+	// Send the webhook
+	if err := s.sendWebhook(secret, testEvent); err != nil {
+		slog.Error("Failed to send test webhook",
+			slog.String("webhook_id", secret.ID),
+			slog.String("error", err.Error()))
+	}
+}
+
+// sendWebhook sends a webhook event using the appropriate security strategy
+func (s *server) sendWebhook(secret db.Secret, event Event) error {
+	// Marshal event to JSON (raw, un-prettified)
+	eventJSON, err := json.Marshal(event)
+	if err != nil {
+		return fmt.Errorf("failed to marshal event: %w", err)
+	}
+	rawBody := string(eventJSON)
+
+	// Get the webhook URL from display_hint
+	webhookURL := secret.DisplayHint
+
+	// Create HTTP request
+	req, err := http.NewRequest("POST", webhookURL, bytes.NewBufferString(rawBody))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	// Set Content-Type header
+	req.Header.Set("Content-Type", "application/json")
+
+	// Get security strategy, default to SIGNING_SECRET if not set
+	securityStrategy := permission.StrategySigningSecret
+	if secret.SecurityStrategy.Valid {
+		securityStrategy = secret.SecurityStrategy.String
+	}
+
+	// Apply security strategy
+	switch securityStrategy {
+	case permission.StrategySharedSecret:
+		// Set Authorization header with Bearer token
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", secret.SecretHash))
+
+	case permission.StrategySigningSecret:
+		// Create Wave-Signature header with HMAC
+		timestamp := strconv.FormatInt(time.Now().Unix(), 10)
+		payload := timestamp + rawBody
+
+		h := hmac.New(sha256.New, []byte(secret.SecretHash))
+		h.Write([]byte(payload))
+		signature := hex.EncodeToString(h.Sum(nil))
+
+		waveSignature := fmt.Sprintf("t=%s,v1=%s", timestamp, signature)
+		req.Header.Set("Wave-Signature", waveSignature)
+
+	default:
+		return fmt.Errorf("unknown security strategy: %s", securityStrategy)
+	}
+
+	// Send the request
+	client := &http.Client{
+		Timeout: 10 * time.Second,
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to send webhook: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Check response status
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("webhook returned non-2xx status: %d", resp.StatusCode)
+	}
+
+	slog.Info("Webhook sent successfully",
+		slog.String("webhook_id", secret.ID),
+		slog.String("url", webhookURL),
+		slog.String("strategy", securityStrategy),
+		slog.Int("status", resp.StatusCode))
+
+	return nil
 }

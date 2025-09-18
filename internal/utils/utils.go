@@ -26,6 +26,15 @@ func NewAPIKey() (string, error) {
 	return "wv_" + hex.EncodeToString(b), nil
 }
 
+// NewWebhookSecret generates a new webhook secret with a "wave_sn_WHS_" prefix
+func NewWebhookSecret() (string, error) {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return "wave_sn_WHS_" + hex.EncodeToString(b), nil
+}
+
 // HashAPIKey computes the SHA-256 hash of an API key
 func HashAPIKey(key string) string {
 	hash := sha256.Sum256([]byte(key))

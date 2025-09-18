@@ -32,14 +32,15 @@ type CheckoutSession struct {
 }
 
 type Secret struct {
-	ID          string
-	UserID      string
-	SecretHash  string
-	SecretType  string
-	Permissions string
-	DisplayHint string
-	CreatedAt   string
-	RevokedAt   sql.NullString
+	ID               string
+	UserID           string
+	SecretHash       string
+	SecretType       string
+	Permissions      string
+	DisplayHint      string
+	CreatedAt        string
+	RevokedAt        sql.NullString
+	SecurityStrategy sql.NullString
 }
 
 type Session struct {
