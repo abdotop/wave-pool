@@ -3,6 +3,16 @@ SELECT *
 FROM checkout_sessions
 WHERE id = ?;
 
+-- name: GetCheckoutSessionByTransactionID :one
+SELECT *
+FROM checkout_sessions
+WHERE transaction_id = ?;
+
+-- name: GetCheckoutSessionsByClientReference :many
+SELECT *
+FROM checkout_sessions
+WHERE client_reference = ?;
+
 -- name: CreateCheckoutSession :exec
 INSERT INTO checkout_sessions (
 	id,
@@ -16,6 +26,8 @@ INSERT INTO checkout_sessions (
 	payment_status,
 	transaction_id,
 	aggregated_merchant_id,
+	restrict_payer_mobile,
+	enforce_payer_mobile,
 	wave_launch_url,
 	when_created,
 	when_expires,
@@ -24,8 +36,18 @@ INSERT INTO checkout_sessions (
 	last_payment_error_code,
 	last_payment_error_message
 ) VALUES (
-	?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+	?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
 );
+
+-- name: UpdateCheckoutSessionStatus :exec
+UPDATE checkout_sessions 
+SET checkout_status = ?, when_completed = ?
+WHERE id = ?;
+
+-- name: UpdateCheckoutSessionRefund :exec
+UPDATE checkout_sessions 
+SET when_refunded = ?
+WHERE id = ?;
 
 -- Users CRUD
 

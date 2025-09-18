@@ -1,12 +1,14 @@
 package server
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
+	"os"
 	"regexp"
 	"strings"
 	"sync"
@@ -433,6 +435,46 @@ func (s *server) HandleRevokeSecret(w http.ResponseWriter, r *http.Request) {
 // Context key for storing permissions in request context
 const permissionsContextKey contextKey = "permissions"
 
+// Checkout Session Data Models
+
+// LastPaymentError represents the nested `last_payment_error` object.
+type LastPaymentError struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
+// CheckoutSession represents the full Checkout Session object.
+type CheckoutSession struct {
+	ID                   string            `json:"id"`
+	Amount               string            `json:"amount"`
+	CheckoutStatus       string            `json:"checkout_status"` // "open", "complete", or "expired"
+	ClientReference      *string           `json:"client_reference,omitempty"`
+	Currency             string            `json:"currency"`
+	ErrorURL             string            `json:"error_url"`
+	LastPaymentError     *LastPaymentError `json:"last_payment_error,omitempty"`
+	BusinessName         string            `json:"business_name"`
+	PaymentStatus        string            `json:"payment_status"` // "processing", "cancelled", or "succeeded"
+	TransactionID        *string           `json:"transaction_id,omitempty"`
+	AggregatedMerchantID *string           `json:"aggregated_merchant_id,omitempty"`
+	SuccessURL           string            `json:"success_url"`
+	WaveLaunchURL        string            `json:"wave_launch_url"`
+	WhenCompleted        *string           `json:"when_completed,omitempty"`
+	WhenCreated          string            `json:"when_created"`
+	WhenExpires          string            `json:"when_expires"`
+}
+
+// CreateCheckoutSessionRequest represents the POST request body for creating checkout sessions
+type CreateCheckoutSessionRequest struct {
+	Amount               string  `json:"amount"`
+	ClientReference      *string `json:"client_reference,omitempty"`
+	Currency             string  `json:"currency"`
+	ErrorURL             string  `json:"error_url"`
+	SuccessURL           string  `json:"success_url"`
+	RestrictPayerMobile  *string `json:"restrict_payer_mobile,omitempty"`
+	EnforcePayerMobile   *string `json:"enforce_payer_mobile,omitempty"` // For backward compatibility
+	AggregatedMerchantID *string `json:"aggregated_merchant_id,omitempty"`
+}
+
 // APIKeyAuthMiddleware validates API keys and adds permissions to context
 func (s *server) APIKeyAuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -497,4 +539,433 @@ func (s *server) APIKeyAuthMiddleware(next http.Handler) http.Handler {
 func GetPermissionsFromContext(ctx context.Context) ([]string, bool) {
 	permissions, ok := ctx.Value(permissionsContextKey).([]string)
 	return permissions, ok
+}
+
+// Helper function to check if user has specific permission
+func hasPermission(permissions []string, required string) bool {
+	for _, p := range permissions {
+		if p == required {
+			return true
+		}
+	}
+	return false
+}
+
+// convertToAPICheckoutSession converts database model to API response
+func convertToAPICheckoutSession(dbSession db.CheckoutSession) CheckoutSession {
+	session := CheckoutSession{
+		ID:             dbSession.ID,
+		Amount:         dbSession.Amount,
+		CheckoutStatus: dbSession.CheckoutStatus,
+		Currency:       dbSession.Currency,
+		ErrorURL:       dbSession.ErrorUrl,
+		BusinessName:   dbSession.BusinessName.String,
+		PaymentStatus:  dbSession.PaymentStatus,
+		SuccessURL:     dbSession.SuccessUrl,
+		WaveLaunchURL:  dbSession.WaveLaunchUrl,
+		WhenCreated:    dbSession.WhenCreated,
+		WhenExpires:    dbSession.WhenExpires,
+	}
+
+	// Handle optional fields
+	if dbSession.ClientReference.Valid {
+		session.ClientReference = &dbSession.ClientReference.String
+	}
+	if dbSession.TransactionID.Valid {
+		session.TransactionID = &dbSession.TransactionID.String
+	}
+	if dbSession.AggregatedMerchantID.Valid {
+		session.AggregatedMerchantID = &dbSession.AggregatedMerchantID.String
+	}
+	if dbSession.WhenCompleted.Valid {
+		session.WhenCompleted = &dbSession.WhenCompleted.String
+	}
+
+	// Handle last payment error
+	if dbSession.LastPaymentErrorCode.Valid && dbSession.LastPaymentErrorMessage.Valid {
+		session.LastPaymentError = &LastPaymentError{
+			Code:    dbSession.LastPaymentErrorCode.String,
+			Message: dbSession.LastPaymentErrorMessage.String,
+		}
+	}
+
+	return session
+}
+
+// HandleCreateCheckoutSession POST /v1/checkout/sessions
+func (s *server) HandleCreateCheckoutSession(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// Get permissions from context (set by API key middleware)
+	permissions, ok := GetPermissionsFromContext(ctx)
+	if !ok {
+		writeAPIError(w, http.StatusUnauthorized, "unauthorized", "No permissions found in context")
+		return
+	}
+
+	// Check if user has CHECKOUT_API permission
+	if !hasPermission(permissions, "CHECKOUT_API") {
+		writeAPIError(w, http.StatusForbidden, "insufficient-permissions", "This API key does not have permission to access checkout operations")
+		return
+	}
+
+	// Parse request body
+	var req CreateCheckoutSessionRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeAPIError(w, http.StatusBadRequest, "request-validation-error", "Invalid JSON in request body")
+		return
+	}
+
+	// Validate required fields
+	if req.Amount == "" {
+		writeAPIError(w, http.StatusBadRequest, "request-validation-error", "amount is required")
+		return
+	}
+	if req.Currency == "" {
+		writeAPIError(w, http.StatusBadRequest, "request-validation-error", "currency is required")
+		return
+	}
+	if req.ErrorURL == "" {
+		writeAPIError(w, http.StatusBadRequest, "request-validation-error", "error_url is required")
+		return
+	}
+	if req.SuccessURL == "" {
+		writeAPIError(w, http.StatusBadRequest, "request-validation-error", "success_url is required")
+		return
+	}
+
+	// Handle backward compatibility for enforce_payer_mobile
+	var restrictPayerMobile *string
+	if req.RestrictPayerMobile != nil {
+		restrictPayerMobile = req.RestrictPayerMobile
+	} else if req.EnforcePayerMobile != nil {
+		restrictPayerMobile = req.EnforcePayerMobile
+	}
+
+	// Generate unique ID with cos_ prefix (20 characters total)
+	// Format: cos-xxxxxxxxxxxx (20 characters)
+	sessionID := "cos-" + utils.GenerateRandomID(16) // cos- (4) + 16 random chars = 20 total
+
+	// Generate transaction ID if not provided
+	transactionID := ksuid.New().String()
+
+	// Set timestamps
+	now := time.Now().UTC()
+	whenCreated := now.Format(time.RFC3339)
+	whenExpires := now.Add(30 * time.Minute).Format(time.RFC3339)
+
+	// Construct Wave launch URL (simulated)
+	waveLaunchURL := cmp.Or(os.Getenv("WAVE_LAUNCH_URL"), "https://local.wave.pool") + "/pay/" + sessionID
+
+	// Create database record
+	createParams := db.CreateCheckoutSessionParams{
+		ID:             sessionID,
+		Amount:         req.Amount,
+		CheckoutStatus: "open",
+		Currency:       req.Currency,
+		ErrorUrl:       req.ErrorURL,
+		SuccessUrl:     req.SuccessURL,
+		PaymentStatus:  "processing",
+		TransactionID:  sql.NullString{String: transactionID, Valid: true},
+		WaveLaunchUrl:  waveLaunchURL,
+		WhenCreated:    whenCreated,
+		WhenExpires:    whenExpires,
+		BusinessName:   sql.NullString{String: "Wave Pool Simulator", Valid: true},
+	}
+
+	// Handle optional fields
+	if req.ClientReference != nil {
+		createParams.ClientReference = sql.NullString{String: *req.ClientReference, Valid: true}
+	}
+	if req.AggregatedMerchantID != nil {
+		createParams.AggregatedMerchantID = sql.NullString{String: *req.AggregatedMerchantID, Valid: true}
+	}
+	if restrictPayerMobile != nil {
+		createParams.RestrictPayerMobile = sql.NullString{String: *restrictPayerMobile, Valid: true}
+		// Also set enforce_payer_mobile for backward compatibility
+		createParams.EnforcePayerMobile = sql.NullString{String: *restrictPayerMobile, Valid: true}
+	}
+
+	// Save to database
+	if err := s.query.CreateCheckoutSession(ctx, createParams); err != nil {
+		slog.ErrorContext(ctx, "Failed to create checkout session", slog.String("error", err.Error()))
+		writeAPIError(w, http.StatusInternalServerError, "internal-error", "Failed to create checkout session")
+		return
+	}
+
+	// Return the created session
+	response := CheckoutSession{
+		ID:             sessionID,
+		Amount:         req.Amount,
+		CheckoutStatus: "open",
+		Currency:       req.Currency,
+		ErrorURL:       req.ErrorURL,
+		BusinessName:   "Wave Pool Simulator",
+		PaymentStatus:  "processing",
+		TransactionID:  &transactionID,
+		SuccessURL:     req.SuccessURL,
+		WaveLaunchURL:  waveLaunchURL,
+		WhenCreated:    whenCreated,
+		WhenExpires:    whenExpires,
+	}
+
+	if req.ClientReference != nil {
+		response.ClientReference = req.ClientReference
+	}
+	if req.AggregatedMerchantID != nil {
+		response.AggregatedMerchantID = req.AggregatedMerchantID
+	}
+
+	utils.WriteJSON(w, http.StatusCreated, response)
+}
+
+// HandleGetCheckoutSession GET /v1/checkout/sessions/:id
+func (s *server) HandleGetCheckoutSession(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// Get permissions from context (set by API key middleware)
+	permissions, ok := GetPermissionsFromContext(ctx)
+	if !ok {
+		writeAPIError(w, http.StatusUnauthorized, "unauthorized", "No permissions found in context")
+		return
+	}
+
+	// Check if user has CHECKOUT_API permission
+	if !hasPermission(permissions, "CHECKOUT_API") {
+		writeAPIError(w, http.StatusForbidden, "insufficient-permissions", "This API key does not have permission to access checkout operations")
+		return
+	}
+
+	// Extract session ID from URL path
+	// Expected format: /v1/checkout/sessions/cos-xxxxxxxxxxxx
+	sessionID := r.PathValue("id")
+	if sessionID == "" || sessionID == r.URL.Path {
+		writeAPIError(w, http.StatusBadRequest, "invalid-session-id", "Invalid session ID in URL")
+		return
+	}
+
+	// Get session from database
+	dbSession, err := s.query.GetCheckoutSession(ctx, sessionID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			writeAPIError(w, http.StatusNotFound, "checkout-session-not-found", "The checkout session was not found")
+			return
+		}
+		slog.ErrorContext(ctx, "Failed to get checkout session", slog.String("error", err.Error()))
+		writeAPIError(w, http.StatusInternalServerError, "internal-error", "Failed to retrieve checkout session")
+		return
+	}
+
+	// Convert to API response format
+	response := convertToAPICheckoutSession(dbSession)
+	utils.WriteJSON(w, http.StatusOK, response)
+}
+
+// HandleGetCheckoutSessionByTransactionID GET /v1/checkout/sessions?transaction_id=xxx
+func (s *server) HandleGetCheckoutSessionByTransactionID(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// Get permissions from context (set by API key middleware)
+	permissions, ok := GetPermissionsFromContext(ctx)
+	if !ok {
+		writeAPIError(w, http.StatusUnauthorized, "unauthorized", "No permissions found in context")
+		return
+	}
+
+	// Check if user has CHECKOUT_API permission
+	if !hasPermission(permissions, "CHECKOUT_API") {
+		writeAPIError(w, http.StatusForbidden, "insufficient-permissions", "This API key does not have permission to access checkout operations")
+		return
+	}
+
+	// Get transaction_id from query parameters
+	transactionID := strings.TrimSpace(r.URL.Query().Get("transaction_id"))
+	if transactionID == "" {
+		writeAPIError(w, http.StatusBadRequest, "missing-transaction-id", "transaction_id query parameter is required")
+		return
+	}
+
+	// Get session from database
+	dbSession, err := s.query.GetCheckoutSessionByTransactionID(ctx, sql.NullString{String: transactionID, Valid: true})
+	if err != nil {
+		if err == sql.ErrNoRows {
+			writeAPIError(w, http.StatusNotFound, "checkout-session-not-found", "The checkout session was not found")
+			return
+		}
+		slog.ErrorContext(ctx, "Failed to get checkout session by transaction ID", slog.String("error", err.Error()))
+		writeAPIError(w, http.StatusInternalServerError, "internal-error", "Failed to retrieve checkout session")
+		return
+	}
+
+	// Convert to API response format
+	response := convertToAPICheckoutSession(dbSession)
+	utils.WriteJSON(w, http.StatusOK, response)
+}
+
+// HandleSearchCheckoutSessions GET /v1/checkout/sessions/search?client_reference=xxx
+func (s *server) HandleSearchCheckoutSessions(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// Get permissions from context (set by API key middleware)
+	permissions, ok := GetPermissionsFromContext(ctx)
+	if !ok {
+		writeAPIError(w, http.StatusUnauthorized, "unauthorized", "No permissions found in context")
+		return
+	}
+
+	// Check if user has CHECKOUT_API permission
+	if !hasPermission(permissions, "CHECKOUT_API") {
+		writeAPIError(w, http.StatusForbidden, "insufficient-permissions", "This API key does not have permission to access checkout operations")
+		return
+	}
+
+	// Get client_reference from query parameters
+	clientReference := strings.TrimSpace(r.URL.Query().Get("client_reference"))
+	if clientReference == "" {
+		writeAPIError(w, http.StatusBadRequest, "missing-client-reference", "client_reference query parameter is required")
+		return
+	}
+
+	// Get sessions from database
+	dbSessions, err := s.query.GetCheckoutSessionsByClientReference(ctx, sql.NullString{String: clientReference, Valid: true})
+	if err != nil {
+		slog.ErrorContext(ctx, "Failed to search checkout sessions", slog.String("error", err.Error()))
+		writeAPIError(w, http.StatusInternalServerError, "internal-error", "Failed to search checkout sessions")
+		return
+	}
+
+	// Convert to API response format
+	var results []CheckoutSession
+	for _, dbSession := range dbSessions {
+		results = append(results, convertToAPICheckoutSession(dbSession))
+	}
+
+	// Return in the specified format: {"result": [...]}
+	response := map[string][]CheckoutSession{
+		"result": results,
+	}
+	utils.WriteJSON(w, http.StatusOK, response)
+}
+
+// HandleExpireCheckoutSession POST /v1/checkout/sessions/:id/expire
+func (s *server) HandleExpireCheckoutSession(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// Get permissions from context (set by API key middleware)
+	permissions, ok := GetPermissionsFromContext(ctx)
+	if !ok {
+		writeAPIError(w, http.StatusUnauthorized, "unauthorized", "No permissions found in context")
+		return
+	}
+
+	// Check if user has CHECKOUT_API permission
+	if !hasPermission(permissions, "CHECKOUT_API") {
+		writeAPIError(w, http.StatusForbidden, "insufficient-permissions", "This API key does not have permission to access checkout operations")
+		return
+	}
+
+	// Extract session ID from URL path
+	// Expected format: /v1/checkout/sessions/cos-xxxxxxxxxxxx/expire
+	sessionID := r.PathValue("id")
+	if sessionID == "" {
+		writeAPIError(w, http.StatusBadRequest, "invalid-session-id", "Invalid session ID in URL")
+		return
+	}
+
+	// Get current session to check status
+	dbSession, err := s.query.GetCheckoutSession(ctx, sessionID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			writeAPIError(w, http.StatusNotFound, "checkout-session-not-found", "The checkout session was not found")
+			return
+		}
+		slog.ErrorContext(ctx, "Failed to get checkout session", slog.String("error", err.Error()))
+		writeAPIError(w, http.StatusInternalServerError, "internal-error", "Failed to retrieve checkout session")
+		return
+	}
+
+	// Check if session is already completed or expired
+	if dbSession.CheckoutStatus == "complete" || dbSession.CheckoutStatus == "expired" {
+		writeAPIError(w, http.StatusConflict, "session-already-finalized", "The checkout session has already been completed or expired")
+		return
+	}
+
+	// Update session to expired status
+	now := time.Now().UTC().Format(time.RFC3339)
+	if err := s.query.UpdateCheckoutSessionStatus(ctx, db.UpdateCheckoutSessionStatusParams{
+		CheckoutStatus: "expired",
+		WhenCompleted:  sql.NullString{String: now, Valid: true},
+		ID:             sessionID,
+	}); err != nil {
+		slog.ErrorContext(ctx, "Failed to expire checkout session", slog.String("error", err.Error()))
+		writeAPIError(w, http.StatusInternalServerError, "internal-error", "Failed to expire checkout session")
+		return
+	}
+
+	// Return 200 OK with empty body
+	w.WriteHeader(http.StatusOK)
+}
+
+// HandleRefundCheckoutSession POST /v1/checkout/sessions/:id/refund
+func (s *server) HandleRefundCheckoutSession(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// Get permissions from context (set by API key middleware)
+	permissions, ok := GetPermissionsFromContext(ctx)
+	if !ok {
+		writeAPIError(w, http.StatusUnauthorized, "unauthorized", "No permissions found in context")
+		return
+	}
+
+	// Check if user has CHECKOUT_API permission
+	if !hasPermission(permissions, "CHECKOUT_API") {
+		writeAPIError(w, http.StatusForbidden, "insufficient-permissions", "This API key does not have permission to access checkout operations")
+		return
+	}
+
+	// Extract session ID from URL path
+	// Expected format: /v1/checkout/sessions/cos-xxxxxxxxxxxx/refund
+	sessionID := r.PathValue("id")
+	if sessionID == "" {
+		writeAPIError(w, http.StatusBadRequest, "invalid-session-id", "Invalid session ID in URL")
+		return
+	}
+
+	// Get current session to check status
+	dbSession, err := s.query.GetCheckoutSession(ctx, sessionID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			writeAPIError(w, http.StatusNotFound, "checkout-session-not-found", "The checkout session was not found")
+			return
+		}
+		slog.ErrorContext(ctx, "Failed to get checkout session", slog.String("error", err.Error()))
+		writeAPIError(w, http.StatusInternalServerError, "internal-error", "Failed to retrieve checkout session")
+		return
+	}
+
+	// Check for idempotency - if already refunded, return success
+	if dbSession.WhenRefunded.Valid {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	// Check if payment status is succeeded
+	if dbSession.PaymentStatus != "succeeded" {
+		writeAPIError(w, http.StatusBadRequest, "checkout-refund-failed", "Can only refund payments that have succeeded")
+		return
+	}
+
+	// Update session to mark as refunded
+	now := time.Now().UTC().Format(time.RFC3339)
+	if err := s.query.UpdateCheckoutSessionRefund(ctx, db.UpdateCheckoutSessionRefundParams{
+		WhenRefunded: sql.NullString{String: now, Valid: true},
+		ID:           sessionID,
+	}); err != nil {
+		slog.ErrorContext(ctx, "Failed to refund checkout session", slog.String("error", err.Error()))
+		writeAPIError(w, http.StatusInternalServerError, "internal-error", "Failed to refund checkout session")
+		return
+	}
+
+	// Return 200 OK with empty body
+	w.WriteHeader(http.StatusOK)
 }

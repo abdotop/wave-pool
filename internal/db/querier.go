@@ -6,6 +6,7 @@ package db
 
 import (
 	"context"
+	"database/sql"
 )
 
 type Querier interface {
@@ -21,6 +22,8 @@ type Querier interface {
 	DeleteSession(ctx context.Context, id string) error
 	DeleteUser(ctx context.Context, id string) error
 	GetCheckoutSession(ctx context.Context, id string) (CheckoutSession, error)
+	GetCheckoutSessionByTransactionID(ctx context.Context, transactionID sql.NullString) (CheckoutSession, error)
+	GetCheckoutSessionsByClientReference(ctx context.Context, clientReference sql.NullString) ([]CheckoutSession, error)
 	GetSecretByHash(ctx context.Context, secretHash string) (Secret, error)
 	GetSecretByID(ctx context.Context, id string) (Secret, error)
 	GetSession(ctx context.Context, id string) (Session, error)
@@ -30,6 +33,8 @@ type Querier interface {
 	ListSessionsByUser(ctx context.Context, arg ListSessionsByUserParams) ([]Session, error)
 	ListUsers(ctx context.Context, arg ListUsersParams) ([]User, error)
 	RevokeSecret(ctx context.Context, arg RevokeSecretParams) error
+	UpdateCheckoutSessionRefund(ctx context.Context, arg UpdateCheckoutSessionRefundParams) error
+	UpdateCheckoutSessionStatus(ctx context.Context, arg UpdateCheckoutSessionStatusParams) error
 	UpdateUserPinHash(ctx context.Context, arg UpdateUserPinHashParams) error
 }
 

@@ -46,6 +46,14 @@ func main() {
 	mux.Handle("POST /v1/secrets", srv.SessionAuthMiddleware(http.HandlerFunc(srv.HandleCreateSecret)))
 	mux.Handle("DELETE /v1/secrets/", srv.SessionAuthMiddleware(http.HandlerFunc(srv.HandleRevokeSecret)))
 
+	// Apply API key authentication middleware to checkout endpoints
+	mux.Handle("POST /v1/checkout/sessions", srv.APIKeyAuthMiddleware(http.HandlerFunc(srv.HandleCreateCheckoutSession)))
+	mux.Handle("GET /v1/checkout/sessions/{id}", srv.APIKeyAuthMiddleware(http.HandlerFunc(srv.HandleGetCheckoutSession)))
+	mux.Handle("GET /v1/checkout/sessions", srv.APIKeyAuthMiddleware(http.HandlerFunc(srv.HandleGetCheckoutSessionByTransactionID)))
+	mux.Handle("GET /v1/checkout/sessions/search", srv.APIKeyAuthMiddleware(http.HandlerFunc(srv.HandleSearchCheckoutSessions)))
+	mux.Handle("POST /v1/checkout/sessions/{id}/expire", srv.APIKeyAuthMiddleware(http.HandlerFunc(srv.HandleExpireCheckoutSession)))
+	mux.Handle("POST /v1/checkout/sessions/{id}/refund", srv.APIKeyAuthMiddleware(http.HandlerFunc(srv.HandleRefundCheckoutSession)))
+
 	server := &http.Server{
 		Addr:         ":" + cmp.Or(os.Getenv("PORT"), "8080"),
 		Handler:      mux,

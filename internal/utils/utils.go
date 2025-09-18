@@ -32,6 +32,22 @@ func HashAPIKey(key string) string {
 	return hex.EncodeToString(hash[:])
 }
 
+// GenerateRandomID generates a random ID of specified length using alphanumeric characters
+func GenerateRandomID(length int) string {
+	const chars = "0123456789abcdefghijklmnopqrstuvwxyz"
+	b := make([]byte, length)
+	if _, err := rand.Read(b); err != nil {
+		// Fallback to a simple method if crypto/rand fails
+		return hex.EncodeToString(b)[:length]
+	}
+
+	result := make([]byte, length)
+	for i := range result {
+		result[i] = chars[b[i]%byte(len(chars))]
+	}
+	return string(result)
+}
+
 func ValidatePIN(pin string) error {
 	if len(pin) != 4 {
 		return errors.New("pin must be 4 digits")
