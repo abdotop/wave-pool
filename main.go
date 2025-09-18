@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
 )
 
@@ -13,7 +14,10 @@ func main() {
 
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		fmt.Fprintf(w, `{"status": "ok"}`)
+		_, err := w.Write([]byte(`{"status": "ok"}`))
+		if err != nil {
+			slog.ErrorContext(r.Context(), "Failed to write response", slog.String("error", err.Error()))
+		}
 	})
 
 	port := "8080"

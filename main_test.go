@@ -15,7 +15,10 @@ func TestHealthEndpoint(t *testing.T) {
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status": "ok"}`))
+		_, err := w.Write([]byte(`{"status": "ok"}`))
+		if err != nil {
+			t.Error("Failed to write response")
+		}
 	})
 
 	handler.ServeHTTP(rr, req)
@@ -40,7 +43,10 @@ func TestRootEndpoint(t *testing.T) {
 
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("Wave Pool API Simulator - " + r.URL.Path))
+		_, err := w.Write([]byte("Wave Pool API Simulator - " + r.URL.Path))
+		if err != nil {
+			t.Error("Failed to write response")
+		}
 	})
 
 	handler.ServeHTTP(rr, req)
