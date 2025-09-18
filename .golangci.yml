@@ -1,0 +1,34 @@
+# GolangCI-Lint configuration file
+# See https://golangci-lint.run/usage/configuration/ for all options
+
+run:
+  timeout: 5m
+
+linters:
+  enable:
+    - govet
+    - errcheck
+    - staticcheck
+    - gosimple
+    - unused
+    - deadcode
+    - structcheck
+    - varcheck
+    - ineffassign
+    - typecheck
+    - gofmt
+    - goimports
+    - misspell
+    - revive
+
+issues:
+  exclude-use-default: false
+
+# Optional: customize linter settings below
+# linters-settings:
+#   gofmt:
+#     simplify: true
+#   revive:
+#     severity: warning
+#     confidence: 0.8
+#     errorCode: 1
