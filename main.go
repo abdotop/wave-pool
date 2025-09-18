@@ -42,6 +42,10 @@ func main() {
 	mux.HandleFunc("GET /v1/users/exists", srv.HandleUserExists)
 	mux.HandleFunc("POST /v1/auth/login", srv.HandleLogin)
 
+	// Apply session authentication middleware to API key management endpoints
+	mux.Handle("POST /v1/secrets", srv.SessionAuthMiddleware(http.HandlerFunc(srv.HandleCreateSecret)))
+	mux.Handle("DELETE /v1/secrets/", srv.SessionAuthMiddleware(http.HandlerFunc(srv.HandleRevokeSecret)))
+
 	server := &http.Server{
 		Addr:         ":" + cmp.Or(os.Getenv("PORT"), "8080"),
 		Handler:      mux,
