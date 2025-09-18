@@ -80,6 +80,115 @@ func (q *Queries) CreateCheckoutSession(ctx context.Context, arg CreateCheckoutS
 	return err
 }
 
+const createSecret = `-- name: CreateSecret :exec
+
+INSERT INTO secrets (
+	id, user_id, secret_hash, secret_type, permissions, display_hint
+) VALUES (
+	?, ?, ?, ?, ?, ?
+)
+`
+
+type CreateSecretParams struct {
+	ID          string
+	UserID      string
+	SecretHash  string
+	SecretType  string
+	Permissions string
+	DisplayHint string
+}
+
+// Secrets CRUD
+func (q *Queries) CreateSecret(ctx context.Context, arg CreateSecretParams) error {
+	_, err := q.db.ExecContext(ctx, createSecret,
+		arg.ID,
+		arg.UserID,
+		arg.SecretHash,
+		arg.SecretType,
+		arg.Permissions,
+		arg.DisplayHint,
+	)
+	return err
+}
+
+const createSession = `-- name: CreateSession :exec
+
+INSERT INTO sessions (
+	id, user_id, expires_at
+) VALUES (
+	?, ?, ?
+)
+`
+
+type CreateSessionParams struct {
+	ID        string
+	UserID    string
+	ExpiresAt string
+}
+
+// Sessions CRUD
+func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) error {
+	_, err := q.db.ExecContext(ctx, createSession, arg.ID, arg.UserID, arg.ExpiresAt)
+	return err
+}
+
+const createUser = `-- name: CreateUser :exec
+
+INSERT INTO users (
+	id, phone_number, pin_hash
+) VALUES (
+	?, ?, ?
+)
+`
+
+type CreateUserParams struct {
+	ID          string
+	PhoneNumber string
+	PinHash     string
+}
+
+// Users CRUD
+func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) error {
+	_, err := q.db.ExecContext(ctx, createUser, arg.ID, arg.PhoneNumber, arg.PinHash)
+	return err
+}
+
+const deleteExpiredSessions = `-- name: DeleteExpiredSessions :exec
+DELETE FROM sessions WHERE expires_at <= ?
+`
+
+func (q *Queries) DeleteExpiredSessions(ctx context.Context, expiresAt string) error {
+	_, err := q.db.ExecContext(ctx, deleteExpiredSessions, expiresAt)
+	return err
+}
+
+const deleteSecret = `-- name: DeleteSecret :exec
+DELETE FROM secrets WHERE id = ?
+`
+
+func (q *Queries) DeleteSecret(ctx context.Context, id string) error {
+	_, err := q.db.ExecContext(ctx, deleteSecret, id)
+	return err
+}
+
+const deleteSession = `-- name: DeleteSession :exec
+DELETE FROM sessions WHERE id = ?
+`
+
+func (q *Queries) DeleteSession(ctx context.Context, id string) error {
+	_, err := q.db.ExecContext(ctx, deleteSession, id)
+	return err
+}
+
+const deleteUser = `-- name: DeleteUser :exec
+DELETE FROM users WHERE id = ?
+`
+
+func (q *Queries) DeleteUser(ctx context.Context, id string) error {
+	_, err := q.db.ExecContext(ctx, deleteUser, id)
+	return err
+}
+
 const getCheckoutSession = `-- name: GetCheckoutSession :one
 SELECT id, amount, checkout_status, client_reference, currency, error_url, success_url, business_name, payment_status, transaction_id, aggregated_merchant_id, restrict_payer_mobile, enforce_payer_mobile, wave_launch_url, when_created, when_expires, when_completed, when_refunded, last_payment_error_code, last_payment_error_message
 FROM checkout_sessions
@@ -112,4 +221,237 @@ func (q *Queries) GetCheckoutSession(ctx context.Context, id string) (CheckoutSe
 		&i.LastPaymentErrorMessage,
 	)
 	return i, err
+}
+
+const getSecretByHash = `-- name: GetSecretByHash :one
+SELECT id, user_id, secret_hash, secret_type, permissions, display_hint, created_at, revoked_at FROM secrets WHERE secret_hash = ?
+`
+
+func (q *Queries) GetSecretByHash(ctx context.Context, secretHash string) (Secret, error) {
+	row := q.db.QueryRowContext(ctx, getSecretByHash, secretHash)
+	var i Secret
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.SecretHash,
+		&i.SecretType,
+		&i.Permissions,
+		&i.DisplayHint,
+		&i.CreatedAt,
+		&i.RevokedAt,
+	)
+	return i, err
+}
+
+const getSecretByID = `-- name: GetSecretByID :one
+SELECT id, user_id, secret_hash, secret_type, permissions, display_hint, created_at, revoked_at FROM secrets WHERE id = ?
+`
+
+func (q *Queries) GetSecretByID(ctx context.Context, id string) (Secret, error) {
+	row := q.db.QueryRowContext(ctx, getSecretByID, id)
+	var i Secret
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.SecretHash,
+		&i.SecretType,
+		&i.Permissions,
+		&i.DisplayHint,
+		&i.CreatedAt,
+		&i.RevokedAt,
+	)
+	return i, err
+}
+
+const getSession = `-- name: GetSession :one
+SELECT id, user_id, expires_at, created_at FROM sessions WHERE id = ?
+`
+
+func (q *Queries) GetSession(ctx context.Context, id string) (Session, error) {
+	row := q.db.QueryRowContext(ctx, getSession, id)
+	var i Session
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.ExpiresAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getUserByID = `-- name: GetUserByID :one
+SELECT id, phone_number, pin_hash, created_at FROM users WHERE id = ?
+`
+
+func (q *Queries) GetUserByID(ctx context.Context, id string) (User, error) {
+	row := q.db.QueryRowContext(ctx, getUserByID, id)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.PhoneNumber,
+		&i.PinHash,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getUserByPhone = `-- name: GetUserByPhone :one
+SELECT id, phone_number, pin_hash, created_at FROM users WHERE phone_number = ?
+`
+
+func (q *Queries) GetUserByPhone(ctx context.Context, phoneNumber string) (User, error) {
+	row := q.db.QueryRowContext(ctx, getUserByPhone, phoneNumber)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.PhoneNumber,
+		&i.PinHash,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const listSecretsByUser = `-- name: ListSecretsByUser :many
+SELECT id, user_id, secret_hash, secret_type, permissions, display_hint, created_at, revoked_at FROM secrets WHERE user_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?
+`
+
+type ListSecretsByUserParams struct {
+	UserID string
+	Limit  int64
+	Offset int64
+}
+
+func (q *Queries) ListSecretsByUser(ctx context.Context, arg ListSecretsByUserParams) ([]Secret, error) {
+	rows, err := q.db.QueryContext(ctx, listSecretsByUser, arg.UserID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Secret{}
+	for rows.Next() {
+		var i Secret
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.SecretHash,
+			&i.SecretType,
+			&i.Permissions,
+			&i.DisplayHint,
+			&i.CreatedAt,
+			&i.RevokedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSessionsByUser = `-- name: ListSessionsByUser :many
+SELECT id, user_id, expires_at, created_at FROM sessions WHERE user_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?
+`
+
+type ListSessionsByUserParams struct {
+	UserID string
+	Limit  int64
+	Offset int64
+}
+
+func (q *Queries) ListSessionsByUser(ctx context.Context, arg ListSessionsByUserParams) ([]Session, error) {
+	rows, err := q.db.QueryContext(ctx, listSessionsByUser, arg.UserID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Session{}
+	for rows.Next() {
+		var i Session
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.ExpiresAt,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listUsers = `-- name: ListUsers :many
+SELECT id, phone_number, pin_hash, created_at FROM users ORDER BY created_at DESC LIMIT ? OFFSET ?
+`
+
+type ListUsersParams struct {
+	Limit  int64
+	Offset int64
+}
+
+func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]User, error) {
+	rows, err := q.db.QueryContext(ctx, listUsers, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []User{}
+	for rows.Next() {
+		var i User
+		if err := rows.Scan(
+			&i.ID,
+			&i.PhoneNumber,
+			&i.PinHash,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const revokeSecret = `-- name: RevokeSecret :exec
+UPDATE secrets SET revoked_at = ? WHERE id = ?
+`
+
+type RevokeSecretParams struct {
+	RevokedAt sql.NullString
+	ID        string
+}
+
+func (q *Queries) RevokeSecret(ctx context.Context, arg RevokeSecretParams) error {
+	_, err := q.db.ExecContext(ctx, revokeSecret, arg.RevokedAt, arg.ID)
+	return err
+}
+
+const updateUserPinHash = `-- name: UpdateUserPinHash :exec
+UPDATE users SET pin_hash = ? WHERE id = ?
+`
+
+type UpdateUserPinHashParams struct {
+	PinHash string
+	ID      string
+}
+
+func (q *Queries) UpdateUserPinHash(ctx context.Context, arg UpdateUserPinHashParams) error {
+	_, err := q.db.ExecContext(ctx, updateUserPinHash, arg.PinHash, arg.ID)
+	return err
 }
