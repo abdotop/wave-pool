@@ -9,7 +9,10 @@ import (
 
 func main() {
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintf(w, "Wave Pool API Simulator - %s", r.URL.Path)
+		_, err := fmt.Fprintf(w, "Wave Pool API Simulator - %s", r.URL.Path)
+		if err != nil {
+			slog.ErrorContext(r.Context(), "Failed to write response", slog.String("error", err.Error()))
+		}
 	})
 
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
