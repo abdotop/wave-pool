@@ -18,6 +18,52 @@ import (
 	"github.com/segmentio/ksuid"
 )
 
+// Helper function to create API key for testing
+func createTestAPIKey(t *testing.T, srv *server) string {
+	t.Helper()
+
+	// Create a test user first
+	userBody := map[string]string{"phone_number": "+221785626022", "pin": "1234"}
+	b, _ := json.Marshal(userBody)
+	lreq := httptest.NewRequest(http.MethodPost, "/v1/auth/login", bytes.NewReader(b))
+	lreq.Header.Set("Content-Type", "application/json")
+	lrr := httptest.NewRecorder()
+	srv.HandleLogin(lrr, lreq)
+	if lrr.Code != http.StatusCreated {
+		t.Fatalf("expected 201 created, got %d", lrr.Code)
+	}
+
+	var loginResp loginResponse
+	if err := json.Unmarshal(lrr.Body.Bytes(), &loginResp); err != nil {
+		t.Fatalf("failed to parse login response: %v", err)
+	}
+
+	// Create an API key with CHECKOUT_API permission
+	secretBody := createSecretRequest{
+		DisplayHint: "Test API Key",
+		Permissions: []permission.Permission{permission.CHECKOUT_API},
+	}
+	sb, _ := json.Marshal(secretBody)
+	sreq := httptest.NewRequest(http.MethodPost, "/v1/secrets", bytes.NewReader(sb))
+	sreq.Header.Set("Content-Type", "application/json")
+	sreq.Header.Set("Authorization", "Bearer "+loginResp.SessionToken)
+
+	// Apply the session middleware for the secret creation
+	srr := httptest.NewRecorder()
+	middleware := srv.SessionAuthMiddleware(http.HandlerFunc(srv.HandleCreateSecret))
+	middleware.ServeHTTP(srr, sreq)
+	if srr.Code != http.StatusCreated {
+		t.Fatalf("expected 201 created for secret, got %d: %s", srr.Code, srr.Body.String())
+	}
+
+	var secretResp createSecretResponse
+	if err := json.Unmarshal(srr.Body.Bytes(), &secretResp); err != nil {
+		t.Fatalf("failed to parse secret response: %v", err)
+	}
+
+	return secretResp.APIKey
+}
+
 func newTestServer(t *testing.T) *server {
 	t.Helper()
 	tmp := t.TempDir()
@@ -689,5 +735,94 @@ func TestAPIKeyAuthMiddlewareWithRevokedKey(t *testing.T) {
 
 	if apiErr.Message != "Your API key has been revoked." {
 		t.Errorf("Expected revoked message, got %s", apiErr.Message)
+	}
+}
+
+func TestHandleCreateCheckoutSession(t *testing.T) {
+	srv := newTestServer(t)
+	apiKey := createTestAPIKey(t, srv)
+
+	// Test successful checkout session creation
+	checkoutBody := CreateCheckoutSessionRequest{
+		Amount:          "1000",
+		Currency:        "XOF",
+		ErrorURL:        "https://example.com/error",
+		SuccessURL:      "https://example.com/success",
+		ClientReference: &[]string{"test-ref-123"}[0],
+	}
+	b, _ := json.Marshal(checkoutBody)
+	req := httptest.NewRequest(http.MethodPost, "/v1/checkout/sessions", bytes.NewReader(b))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+
+	rr := httptest.NewRecorder()
+	middleware := srv.APIKeyAuthMiddleware(http.HandlerFunc(srv.HandleCreateCheckoutSession))
+	middleware.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("expected 201 created, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	var resp CheckoutSession
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to parse response: %v", err)
+	}
+
+	// Verify response fields
+	if !strings.HasPrefix(resp.ID, "cos-") {
+		t.Errorf("Expected ID to start with 'cos-', got %s", resp.ID)
+	}
+	if len(resp.ID) != 20 {
+		t.Errorf("Expected ID length to be 20, got %d", len(resp.ID))
+	}
+	if resp.Amount != "1000" {
+		t.Errorf("Expected amount 1000, got %s", resp.Amount)
+	}
+	if resp.Currency != "XOF" {
+		t.Errorf("Expected currency XOF, got %s", resp.Currency)
+	}
+	if resp.CheckoutStatus != "open" {
+		t.Errorf("Expected checkout status 'open', got %s", resp.CheckoutStatus)
+	}
+	if resp.PaymentStatus != "processing" {
+		t.Errorf("Expected payment status 'processing', got %s", resp.PaymentStatus)
+	}
+	if resp.BusinessName != "Wave Pool Simulator" {
+		t.Errorf("Expected business name 'Wave Pool Simulator', got %s", resp.BusinessName)
+	}
+	if resp.ClientReference == nil || *resp.ClientReference != "test-ref-123" {
+		t.Errorf("Expected client reference 'test-ref-123', got %v", resp.ClientReference)
+	}
+}
+
+func TestHandleCreateCheckoutSession_ValidationError(t *testing.T) {
+	srv := newTestServer(t)
+	apiKey := createTestAPIKey(t, srv)
+
+	// Test with missing required fields
+	checkoutBody := CreateCheckoutSessionRequest{
+		Amount: "1000",
+		// Missing currency, error_url, success_url
+	}
+	b, _ := json.Marshal(checkoutBody)
+	req := httptest.NewRequest(http.MethodPost, "/v1/checkout/sessions", bytes.NewReader(b))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+
+	rr := httptest.NewRecorder()
+	middleware := srv.APIKeyAuthMiddleware(http.HandlerFunc(srv.HandleCreateCheckoutSession))
+	middleware.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 bad request, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	var apiErr APIError
+	if err := json.Unmarshal(rr.Body.Bytes(), &apiErr); err != nil {
+		t.Fatalf("failed to parse error response: %v", err)
+	}
+
+	if apiErr.Code != "request-validation-error" {
+		t.Errorf("Expected code 'request-validation-error', got %s", apiErr.Code)
 	}
 }

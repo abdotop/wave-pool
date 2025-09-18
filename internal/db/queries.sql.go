@@ -23,6 +23,8 @@ INSERT INTO checkout_sessions (
 	payment_status,
 	transaction_id,
 	aggregated_merchant_id,
+	restrict_payer_mobile,
+	enforce_payer_mobile,
 	wave_launch_url,
 	when_created,
 	when_expires,
@@ -31,7 +33,7 @@ INSERT INTO checkout_sessions (
 	last_payment_error_code,
 	last_payment_error_message
 ) VALUES (
-	?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+	?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
 )
 `
 
@@ -47,6 +49,8 @@ type CreateCheckoutSessionParams struct {
 	PaymentStatus           string
 	TransactionID           sql.NullString
 	AggregatedMerchantID    sql.NullString
+	RestrictPayerMobile     sql.NullString
+	EnforcePayerMobile      sql.NullString
 	WaveLaunchUrl           string
 	WhenCreated             string
 	WhenExpires             string
@@ -69,6 +73,8 @@ func (q *Queries) CreateCheckoutSession(ctx context.Context, arg CreateCheckoutS
 		arg.PaymentStatus,
 		arg.TransactionID,
 		arg.AggregatedMerchantID,
+		arg.RestrictPayerMobile,
+		arg.EnforcePayerMobile,
 		arg.WaveLaunchUrl,
 		arg.WhenCreated,
 		arg.WhenExpires,
@@ -221,6 +227,90 @@ func (q *Queries) GetCheckoutSession(ctx context.Context, id string) (CheckoutSe
 		&i.LastPaymentErrorMessage,
 	)
 	return i, err
+}
+
+const getCheckoutSessionByTransactionID = `-- name: GetCheckoutSessionByTransactionID :one
+SELECT id, amount, checkout_status, client_reference, currency, error_url, success_url, business_name, payment_status, transaction_id, aggregated_merchant_id, restrict_payer_mobile, enforce_payer_mobile, wave_launch_url, when_created, when_expires, when_completed, when_refunded, last_payment_error_code, last_payment_error_message
+FROM checkout_sessions
+WHERE transaction_id = ?
+`
+
+func (q *Queries) GetCheckoutSessionByTransactionID(ctx context.Context, transactionID sql.NullString) (CheckoutSession, error) {
+	row := q.db.QueryRowContext(ctx, getCheckoutSessionByTransactionID, transactionID)
+	var i CheckoutSession
+	err := row.Scan(
+		&i.ID,
+		&i.Amount,
+		&i.CheckoutStatus,
+		&i.ClientReference,
+		&i.Currency,
+		&i.ErrorUrl,
+		&i.SuccessUrl,
+		&i.BusinessName,
+		&i.PaymentStatus,
+		&i.TransactionID,
+		&i.AggregatedMerchantID,
+		&i.RestrictPayerMobile,
+		&i.EnforcePayerMobile,
+		&i.WaveLaunchUrl,
+		&i.WhenCreated,
+		&i.WhenExpires,
+		&i.WhenCompleted,
+		&i.WhenRefunded,
+		&i.LastPaymentErrorCode,
+		&i.LastPaymentErrorMessage,
+	)
+	return i, err
+}
+
+const getCheckoutSessionsByClientReference = `-- name: GetCheckoutSessionsByClientReference :many
+SELECT id, amount, checkout_status, client_reference, currency, error_url, success_url, business_name, payment_status, transaction_id, aggregated_merchant_id, restrict_payer_mobile, enforce_payer_mobile, wave_launch_url, when_created, when_expires, when_completed, when_refunded, last_payment_error_code, last_payment_error_message
+FROM checkout_sessions
+WHERE client_reference = ?
+`
+
+func (q *Queries) GetCheckoutSessionsByClientReference(ctx context.Context, clientReference sql.NullString) ([]CheckoutSession, error) {
+	rows, err := q.db.QueryContext(ctx, getCheckoutSessionsByClientReference, clientReference)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CheckoutSession{}
+	for rows.Next() {
+		var i CheckoutSession
+		if err := rows.Scan(
+			&i.ID,
+			&i.Amount,
+			&i.CheckoutStatus,
+			&i.ClientReference,
+			&i.Currency,
+			&i.ErrorUrl,
+			&i.SuccessUrl,
+			&i.BusinessName,
+			&i.PaymentStatus,
+			&i.TransactionID,
+			&i.AggregatedMerchantID,
+			&i.RestrictPayerMobile,
+			&i.EnforcePayerMobile,
+			&i.WaveLaunchUrl,
+			&i.WhenCreated,
+			&i.WhenExpires,
+			&i.WhenCompleted,
+			&i.WhenRefunded,
+			&i.LastPaymentErrorCode,
+			&i.LastPaymentErrorMessage,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getSecretByHash = `-- name: GetSecretByHash :one
@@ -439,6 +529,39 @@ type RevokeSecretParams struct {
 
 func (q *Queries) RevokeSecret(ctx context.Context, arg RevokeSecretParams) error {
 	_, err := q.db.ExecContext(ctx, revokeSecret, arg.RevokedAt, arg.ID)
+	return err
+}
+
+const updateCheckoutSessionRefund = `-- name: UpdateCheckoutSessionRefund :exec
+UPDATE checkout_sessions 
+SET when_refunded = ?
+WHERE id = ?
+`
+
+type UpdateCheckoutSessionRefundParams struct {
+	WhenRefunded sql.NullString
+	ID           string
+}
+
+func (q *Queries) UpdateCheckoutSessionRefund(ctx context.Context, arg UpdateCheckoutSessionRefundParams) error {
+	_, err := q.db.ExecContext(ctx, updateCheckoutSessionRefund, arg.WhenRefunded, arg.ID)
+	return err
+}
+
+const updateCheckoutSessionStatus = `-- name: UpdateCheckoutSessionStatus :exec
+UPDATE checkout_sessions 
+SET checkout_status = ?, when_completed = ?
+WHERE id = ?
+`
+
+type UpdateCheckoutSessionStatusParams struct {
+	CheckoutStatus string
+	WhenCompleted  sql.NullString
+	ID             string
+}
+
+func (q *Queries) UpdateCheckoutSessionStatus(ctx context.Context, arg UpdateCheckoutSessionStatusParams) error {
+	_, err := q.db.ExecContext(ctx, updateCheckoutSessionStatus, arg.CheckoutStatus, arg.WhenCompleted, arg.ID)
 	return err
 }
 
