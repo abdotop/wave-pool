@@ -89,19 +89,20 @@ func (q *Queries) CreateCheckoutSession(ctx context.Context, arg CreateCheckoutS
 const createSecret = `-- name: CreateSecret :exec
 
 INSERT INTO secrets (
-	id, user_id, secret_hash, secret_type, permissions, display_hint
+	id, user_id, secret_hash, secret_type, permissions, display_hint, security_strategy
 ) VALUES (
-	?, ?, ?, ?, ?, ?
+	?, ?, ?, ?, ?, ?, ?
 )
 `
 
 type CreateSecretParams struct {
-	ID          string
-	UserID      string
-	SecretHash  string
-	SecretType  string
-	Permissions string
-	DisplayHint string
+	ID               string
+	UserID           string
+	SecretHash       string
+	SecretType       string
+	Permissions      string
+	DisplayHint      string
+	SecurityStrategy sql.NullString
 }
 
 // Secrets CRUD
@@ -113,6 +114,7 @@ func (q *Queries) CreateSecret(ctx context.Context, arg CreateSecretParams) erro
 		arg.SecretType,
 		arg.Permissions,
 		arg.DisplayHint,
+		arg.SecurityStrategy,
 	)
 	return err
 }
@@ -314,7 +316,7 @@ func (q *Queries) GetCheckoutSessionsByClientReference(ctx context.Context, clie
 }
 
 const getSecretByHash = `-- name: GetSecretByHash :one
-SELECT id, user_id, secret_hash, secret_type, permissions, display_hint, created_at, revoked_at FROM secrets WHERE secret_hash = ?
+SELECT id, user_id, secret_hash, secret_type, permissions, display_hint, created_at, revoked_at, security_strategy FROM secrets WHERE secret_hash = ?
 `
 
 func (q *Queries) GetSecretByHash(ctx context.Context, secretHash string) (Secret, error) {
@@ -329,12 +331,13 @@ func (q *Queries) GetSecretByHash(ctx context.Context, secretHash string) (Secre
 		&i.DisplayHint,
 		&i.CreatedAt,
 		&i.RevokedAt,
+		&i.SecurityStrategy,
 	)
 	return i, err
 }
 
 const getSecretByID = `-- name: GetSecretByID :one
-SELECT id, user_id, secret_hash, secret_type, permissions, display_hint, created_at, revoked_at FROM secrets WHERE id = ?
+SELECT id, user_id, secret_hash, secret_type, permissions, display_hint, created_at, revoked_at, security_strategy FROM secrets WHERE id = ?
 `
 
 func (q *Queries) GetSecretByID(ctx context.Context, id string) (Secret, error) {
@@ -349,6 +352,7 @@ func (q *Queries) GetSecretByID(ctx context.Context, id string) (Secret, error) 
 		&i.DisplayHint,
 		&i.CreatedAt,
 		&i.RevokedAt,
+		&i.SecurityStrategy,
 	)
 	return i, err
 }
@@ -402,7 +406,7 @@ func (q *Queries) GetUserByPhone(ctx context.Context, phoneNumber string) (User,
 }
 
 const listSecretsByUser = `-- name: ListSecretsByUser :many
-SELECT id, user_id, secret_hash, secret_type, permissions, display_hint, created_at, revoked_at FROM secrets WHERE user_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?
+SELECT id, user_id, secret_hash, secret_type, permissions, display_hint, created_at, revoked_at, security_strategy FROM secrets WHERE user_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?
 `
 
 type ListSecretsByUserParams struct {
@@ -429,6 +433,7 @@ func (q *Queries) ListSecretsByUser(ctx context.Context, arg ListSecretsByUserPa
 			&i.DisplayHint,
 			&i.CreatedAt,
 			&i.RevokedAt,
+			&i.SecurityStrategy,
 		); err != nil {
 			return nil, err
 		}

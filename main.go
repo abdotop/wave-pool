@@ -46,6 +46,10 @@ func main() {
 	mux.Handle("POST /v1/secrets", srv.SessionAuthMiddleware(http.HandlerFunc(srv.HandleCreateSecret)))
 	mux.Handle("DELETE /v1/secrets/", srv.SessionAuthMiddleware(http.HandlerFunc(srv.HandleRevokeSecret)))
 
+	// Apply session authentication middleware to webhook management endpoints
+	mux.Handle("POST /v1/webhooks", srv.SessionAuthMiddleware(http.HandlerFunc(srv.HandleCreateWebhook)))
+	mux.Handle("POST /v1/webhooks/{id}/test", srv.SessionAuthMiddleware(http.HandlerFunc(srv.HandleTestWebhook)))
+
 	// Apply API key authentication middleware to checkout endpoints
 	mux.Handle("POST /v1/checkout/sessions", srv.APIKeyAuthMiddleware(http.HandlerFunc(srv.HandleCreateCheckoutSession)))
 	mux.Handle("GET /v1/checkout/sessions/{id}", srv.APIKeyAuthMiddleware(http.HandlerFunc(srv.HandleGetCheckoutSession)))

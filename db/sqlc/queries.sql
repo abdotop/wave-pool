@@ -77,9 +77,9 @@ DELETE FROM users WHERE id = ?;
 
 -- name: CreateSecret :exec
 INSERT INTO secrets (
-	id, user_id, secret_hash, secret_type, permissions, display_hint
+	id, user_id, secret_hash, secret_type, permissions, display_hint, security_strategy
 ) VALUES (
-	?, ?, ?, ?, ?, ?
+	?, ?, ?, ?, ?, ?, ?
 );
 
 -- name: GetSecretByID :one
