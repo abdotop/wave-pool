@@ -5,6 +5,8 @@ go 1.24
 require (
 	github.com/mattn/go-sqlite3 v1.14.32
 	github.com/pressly/goose/v3 v3.25.0
+	github.com/segmentio/ksuid v1.0.4
+	golang.org/x/crypto v0.40.0
 )
 
 require (
