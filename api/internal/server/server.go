@@ -656,8 +656,8 @@ func (s *server) HandleCreateCheckoutSession(w http.ResponseWriter, r *http.Requ
 	whenCreated := now.Format(time.RFC3339)
 	whenExpires := now.Add(30 * time.Minute).Format(time.RFC3339)
 
-	// Construct Wave launch URL (simulated)
-	waveLaunchURL := cmp.Or(os.Getenv("WAVE_LAUNCH_URL"), "https://local.wave.pool") + "/pay/" + sessionID
+		// Construct Wave launch URL (simulated)
+		waveLaunchURL := cmp.Or(os.Getenv("WAVE_LAUNCH_URL"), "local.wave.pool") + "/pay/" + sessionID
 
 	// Create database record
 	createParams := db.CreateCheckoutSessionParams{
