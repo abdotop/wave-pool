@@ -45,7 +45,7 @@ func main() {
 
 	// Portal endpoints (session-authenticated)
 	mux.Handle("POST /api/v1/portal/secrets", srv.SessionAuthMiddleware(http.HandlerFunc(srv.HandleCreateSecret)))
-	mux.Handle("DELETE /api/v1/portal/secrets/", srv.SessionAuthMiddleware(http.HandlerFunc(srv.HandleRevokeSecret)))
+	mux.Handle("DELETE /api/v1/portal/secrets/{id}", srv.SessionAuthMiddleware(http.HandlerFunc(srv.HandleRevokeSecret)))
 	mux.Handle("GET /api/v1/portal/secrets", srv.SessionAuthMiddleware(http.HandlerFunc(srv.HandleListSecrets)))
 	mux.Handle("POST /api/v1/portal/webhooks", srv.SessionAuthMiddleware(http.HandlerFunc(srv.HandleCreateWebhook)))
 	mux.Handle("GET /api/v1/portal/checkout-sessions", srv.SessionAuthMiddleware(http.HandlerFunc(srv.HandleListCheckoutSessions)))
@@ -61,6 +61,10 @@ func main() {
 	// Payment simulation endpoint (no authentication)
 	mux.HandleFunc("GET /pay/{session_id}", srv.HandlePaymentPageGET)
 	mux.HandleFunc("POST /pay/{session_id}", srv.HandlePaymentPagePOST)
+
+	// Static file serving - serve web portal files at root
+	fileServer := http.FileServer(http.Dir("web/public/"))
+	mux.Handle("GET /", fileServer)
 
 	server := &http.Server{
 		Addr:         ":" + cmp.Or(os.Getenv("PORT"), "8080"),
