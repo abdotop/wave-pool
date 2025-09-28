@@ -29,9 +29,11 @@ type Querier interface {
 	GetSession(ctx context.Context, id string) (Session, error)
 	GetUserByID(ctx context.Context, id string) (User, error)
 	GetUserByPhone(ctx context.Context, phoneNumber string) (User, error)
+	ListCheckoutSessionsByUser(ctx context.Context, arg ListCheckoutSessionsByUserParams) ([]CheckoutSession, error)
 	ListSecretsByUser(ctx context.Context, arg ListSecretsByUserParams) ([]Secret, error)
 	ListSessionsByUser(ctx context.Context, arg ListSessionsByUserParams) ([]Session, error)
 	ListUsers(ctx context.Context, arg ListUsersParams) ([]User, error)
+	ListWebhooksByUser(ctx context.Context, arg ListWebhooksByUserParams) ([]Secret, error)
 	RevokeSecret(ctx context.Context, arg RevokeSecretParams) error
 	UpdateCheckoutSessionRefund(ctx context.Context, arg UpdateCheckoutSessionRefundParams) error
 	UpdateCheckoutSessionStatus(ctx context.Context, arg UpdateCheckoutSessionStatusParams) error

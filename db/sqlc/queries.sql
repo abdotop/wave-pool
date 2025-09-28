@@ -13,6 +13,12 @@ SELECT *
 FROM checkout_sessions
 WHERE client_reference = ?;
 
+-- name: ListCheckoutSessionsByUser :many  
+SELECT *
+FROM checkout_sessions
+ORDER BY when_created DESC 
+LIMIT ? OFFSET ?;
+
 -- name: CreateCheckoutSession :exec
 INSERT INTO checkout_sessions (
 	id,
@@ -77,9 +83,9 @@ DELETE FROM users WHERE id = ?;
 
 -- name: CreateSecret :exec
 INSERT INTO secrets (
-	id, user_id, secret_hash, secret_type, permissions, display_hint
+	id, user_id, secret_hash, secret_type, permissions, display_hint, webhook_url, webhook_security_strategy
 ) VALUES (
-	?, ?, ?, ?, ?, ?
+	?, ?, ?, ?, ?, ?, ?, ?
 );
 
 -- name: GetSecretByID :one
@@ -90,6 +96,9 @@ SELECT * FROM secrets WHERE secret_hash = ?;
 
 -- name: ListSecretsByUser :many
 SELECT * FROM secrets WHERE user_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?;
+
+-- name: ListWebhooksByUser :many
+SELECT * FROM secrets WHERE user_id = ? AND secret_type = 'WEBHOOK_SECRET' ORDER BY created_at DESC LIMIT ? OFFSET ?;
 
 -- name: RevokeSecret :exec
 UPDATE secrets SET revoked_at = ? WHERE id = ?;

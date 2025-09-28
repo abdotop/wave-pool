@@ -360,12 +360,14 @@ func (s *server) HandleCreateSecret(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.query.CreateSecret(ctx, db.CreateSecretParams{
-		ID:          secretID,
-		UserID:      userID,
-		SecretHash:  keyHash,
-		SecretType:  "API_KEY",
-		Permissions: string(permissionsJSON),
-		DisplayHint: req.DisplayHint,
+		ID:                      secretID,
+		UserID:                  userID,
+		SecretHash:              keyHash,
+		SecretType:              "API_KEY",
+		Permissions:             string(permissionsJSON),
+		DisplayHint:             req.DisplayHint,
+		WebhookUrl:              sql.NullString{}, // empty for API keys
+		WebhookSecurityStrategy: sql.NullString{}, // empty for API keys
 	}); err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
@@ -968,4 +970,338 @@ func (s *server) HandleRefundCheckoutSession(w http.ResponseWriter, r *http.Requ
 
 	// Return 200 OK with empty body
 	w.WriteHeader(http.StatusOK)
+}
+
+// HandleListSecrets GET /api/v1/portal/secrets  
+func (s *server) HandleListSecrets(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	
+	// Get user ID from context (set by session middleware)
+	userID, ok := GetUserIDFromContext(ctx)
+	if !ok {
+		writeAPIError(w, http.StatusUnauthorized, "unauthorized", "No user ID found in context")
+		return
+	}
+
+	// Get secrets from database (limit to 100 for now)
+	secrets, err := s.query.ListSecretsByUser(ctx, db.ListSecretsByUserParams{
+		UserID: userID,
+		Limit:  100,
+		Offset: 0,
+	})
+	if err != nil {
+		slog.ErrorContext(ctx, "Failed to list secrets", slog.String("error", err.Error()))
+		writeAPIError(w, http.StatusInternalServerError, "internal-error", "Failed to list secrets")
+		return
+	}
+
+	// Convert to response format (exclude sensitive data)
+	type secretResponse struct {
+		ID          string `json:"id"`
+		SecretType  string `json:"secret_type"`
+		DisplayHint string `json:"display_hint"`
+		Permissions string `json:"permissions,omitempty"`
+		WebhookURL  string `json:"webhook_url,omitempty"`
+		CreatedAt   string `json:"created_at"`
+		RevokedAt   string `json:"revoked_at,omitempty"`
+	}
+
+	var response []secretResponse
+	for _, secret := range secrets {
+		resp := secretResponse{
+			ID:          secret.ID,
+			SecretType:  secret.SecretType,
+			DisplayHint: secret.DisplayHint,
+			CreatedAt:   secret.CreatedAt,
+		}
+		
+		if secret.SecretType == "API_KEY" {
+			resp.Permissions = secret.Permissions
+		} else if secret.SecretType == "WEBHOOK_SECRET" && secret.WebhookUrl.Valid {
+			resp.WebhookURL = secret.WebhookUrl.String
+		}
+		
+		if secret.RevokedAt.Valid {
+			resp.RevokedAt = secret.RevokedAt.String
+		}
+		
+		response = append(response, resp)
+	}
+
+	utils.WriteJSON(w, http.StatusOK, response)
+}
+
+// CreateWebhookRequest represents the POST request body for creating webhooks
+type CreateWebhookRequest struct {
+	URL              string   `json:"url"`
+	Events           []string `json:"events"`
+	SecurityStrategy string   `json:"security_strategy"` // "shared_secret" or "signing_secret"
+	DisplayHint      string   `json:"display_hint"`
+}
+
+type CreateWebhookResponse struct {
+	WebhookID string `json:"webhook_id"`
+	Secret    string `json:"webhook_secret"`
+}
+
+// HandleCreateWebhook POST /api/v1/portal/webhooks
+func (s *server) HandleCreateWebhook(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	
+	// Get user ID from context (set by session middleware)
+	userID, ok := GetUserIDFromContext(ctx)
+	if !ok {
+		writeAPIError(w, http.StatusUnauthorized, "unauthorized", "No user ID found in context")
+		return
+	}
+
+	// Parse request body
+	var req CreateWebhookRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeAPIError(w, http.StatusBadRequest, "invalid-request", "Invalid JSON request body")
+		return
+	}
+
+	// Validate required fields
+	if req.URL == "" {
+		writeAPIError(w, http.StatusBadRequest, "missing-url", "webhook URL is required")
+		return
+	}
+	if req.SecurityStrategy == "" {
+		req.SecurityStrategy = "shared_secret" // default
+	}
+	if req.SecurityStrategy != "shared_secret" && req.SecurityStrategy != "signing_secret" {
+		writeAPIError(w, http.StatusBadRequest, "invalid-security-strategy", "security_strategy must be 'shared_secret' or 'signing_secret'")
+		return
+	}
+	if req.DisplayHint == "" {
+		req.DisplayHint = "Webhook for " + req.URL
+	}
+
+	// Generate webhook secret and hash it
+	webhookSecret, err := utils.NewSessionToken() // reuse session token generation for webhook secrets
+	if err != nil {
+		slog.ErrorContext(ctx, "Failed to generate webhook secret", slog.String("error", err.Error()))
+		writeAPIError(w, http.StatusInternalServerError, "internal-error", "Failed to generate webhook secret")
+		return
+	}
+	secretHash := utils.HashAPIKey(webhookSecret)
+	webhookID := ksuid.New().String()
+
+	// Create webhook record
+	err = s.query.CreateSecret(ctx, db.CreateSecretParams{
+		ID:                      webhookID,
+		UserID:                  userID,
+		SecretHash:              secretHash,
+		SecretType:              "WEBHOOK_SECRET",
+		Permissions:             "[]", // webhooks don't use permissions
+		DisplayHint:             req.DisplayHint,
+		WebhookUrl:              sql.NullString{String: req.URL, Valid: true},
+		WebhookSecurityStrategy: sql.NullString{String: req.SecurityStrategy, Valid: true},
+	})
+	if err != nil {
+		slog.ErrorContext(ctx, "Failed to create webhook", slog.String("error", err.Error()))
+		writeAPIError(w, http.StatusInternalServerError, "internal-error", "Failed to create webhook")
+		return
+	}
+
+	// Return response with the webhook secret (only shown once)
+	resp := CreateWebhookResponse{
+		WebhookID: webhookID,
+		Secret:    webhookSecret,
+	}
+	utils.WriteJSON(w, http.StatusCreated, resp)
+}
+
+// HandleListCheckoutSessions GET /api/v1/portal/checkout-sessions
+func (s *server) HandleListCheckoutSessions(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	
+	// Get user ID from context (set by session middleware)
+	_, ok := GetUserIDFromContext(ctx)
+	if !ok {
+		writeAPIError(w, http.StatusUnauthorized, "unauthorized", "No user ID found in context")
+		return
+	}
+
+	// Get checkout sessions from database (limit to 100 for now)
+	// In a real implementation, this would filter by the user's merchant account
+	dbSessions, err := s.query.ListCheckoutSessionsByUser(ctx, db.ListCheckoutSessionsByUserParams{
+		Limit:  100,
+		Offset: 0,
+	})
+	if err != nil {
+		slog.ErrorContext(ctx, "Failed to list checkout sessions", slog.String("error", err.Error()))
+		writeAPIError(w, http.StatusInternalServerError, "internal-error", "Failed to list checkout sessions")
+		return
+	}
+
+	// Convert to API response format
+	var sessions []CheckoutSession
+	for _, dbSession := range dbSessions {
+		sessions = append(sessions, convertToAPICheckoutSession(dbSession))
+	}
+
+	utils.WriteJSON(w, http.StatusOK, map[string]interface{}{
+		"sessions": sessions,
+		"total":    len(sessions),
+	})
+}
+
+// HandlePaymentPageGET GET /pay/{session_id}
+func (s *server) HandlePaymentPageGET(w http.ResponseWriter, r *http.Request) {
+	sessionID := r.PathValue("session_id")
+	if sessionID == "" {
+		http.Error(w, "Missing session ID", http.StatusBadRequest)
+		return
+	}
+
+	// Get session from database
+	ctx := r.Context()
+	dbSession, err := s.query.GetCheckoutSession(ctx, sessionID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			http.Error(w, "Session not found", http.StatusNotFound)
+			return
+		}
+		slog.ErrorContext(ctx, "Failed to get checkout session", slog.String("error", err.Error()))
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	// Check if session is still valid
+	if dbSession.CheckoutStatus != "open" {
+		http.Error(w, "Session is no longer valid", http.StatusBadRequest)
+		return
+	}
+
+	// Generate QR code content (deep link for the Flutter app)
+	deepLink := "wavepool://pay/" + sessionID
+
+	// Serve HTML page with payment details and QR code
+	html := `<!DOCTYPE html>
+<html>
+<head>
+    <title>Wave Payment - ` + sessionID + `</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; text-align: center; }
+        .payment-details { background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0; }
+        .amount { font-size: 2em; color: #2196F3; font-weight: bold; }
+        .qr-code { margin: 20px 0; }
+        .instructions { color: #666; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <h1>Complete Your Payment</h1>
+    <div class="payment-details">
+        <div class="amount">` + dbSession.Amount + ` ` + dbSession.Currency + `</div>
+        <div class="merchant">` + dbSession.BusinessName.String + `</div>
+    </div>
+    
+    <div class="qr-code">
+        <div id="qrcode"></div>
+    </div>
+    
+    <div class="instructions">
+        Scan this QR code with the Wave Pool mobile app to simulate the payment
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+    <script>
+        QRCode.toCanvas(document.getElementById('qrcode'), '` + deepLink + `', {
+            width: 256,
+            margin: 2,
+            color: {
+                dark: '#000000',
+                light: '#FFFFFF'
+            }
+        });
+    </script>
+</body>
+</html>`
+
+	w.Header().Set("Content-Type", "text/html")
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(html))
+}
+
+// PaymentStatusRequest represents the POST request body for payment status updates
+type PaymentStatusRequest struct {
+	Status string `json:"status"` // "succeeded" or "failed"
+}
+
+// HandlePaymentPagePOST POST /pay/{session_id}
+func (s *server) HandlePaymentPagePOST(w http.ResponseWriter, r *http.Request) {
+	sessionID := r.PathValue("session_id")
+	if sessionID == "" {
+		http.Error(w, "Missing session ID", http.StatusBadRequest)
+		return
+	}
+
+	ctx := r.Context()
+
+	// Parse request body
+	var req PaymentStatusRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	// Validate status
+	if req.Status != "succeeded" && req.Status != "failed" {
+		http.Error(w, "Status must be 'succeeded' or 'failed'", http.StatusBadRequest)
+		return
+	}
+
+	// Get current session
+	dbSession, err := s.query.GetCheckoutSession(ctx, sessionID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			http.Error(w, "Session not found", http.StatusNotFound)
+			return
+		}
+		slog.ErrorContext(ctx, "Failed to get checkout session", slog.String("error", err.Error()))
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	// Check if session is still valid for payment
+	if dbSession.CheckoutStatus != "open" {
+		http.Error(w, "Session is no longer valid for payment", http.StatusBadRequest)
+		return
+	}
+
+	// Update session status
+	now := time.Now().UTC().Format(time.RFC3339)
+	var checkoutStatus string
+	
+	if req.Status == "succeeded" {
+		checkoutStatus = "complete"
+	} else {
+		checkoutStatus = "complete" // both failed and succeeded mark as complete
+	}
+
+	err = s.query.UpdateCheckoutSessionStatus(ctx, db.UpdateCheckoutSessionStatusParams{
+		CheckoutStatus: checkoutStatus,
+		WhenCompleted:  sql.NullString{String: now, Valid: true},
+		ID:             sessionID,
+	})
+	if err != nil {
+		slog.ErrorContext(ctx, "Failed to update checkout session", slog.String("error", err.Error()))
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	// TODO: Trigger webhook delivery here
+	// For now, just log the event
+	slog.InfoContext(ctx, "Payment simulation completed", 
+		slog.String("session_id", sessionID),
+		slog.String("status", req.Status))
+
+	// Return success
+	utils.WriteJSON(w, http.StatusOK, map[string]string{
+		"status":  "success",
+		"message": "Payment status updated",
+	})
 }

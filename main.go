@@ -39,20 +39,28 @@ func main() {
 
 	srv := server.NewServer(st)
 
-	mux.HandleFunc("GET /v1/users/exists", srv.HandleUserExists)
-	mux.HandleFunc("POST /v1/auth/login", srv.HandleLogin)
+	// Auth endpoints
+	mux.HandleFunc("GET /api/v1/users/exists", srv.HandleUserExists)
+	mux.HandleFunc("POST /api/v1/auth/login", srv.HandleLogin)
 
-	// Apply session authentication middleware to API key management endpoints
-	mux.Handle("POST /v1/secrets", srv.SessionAuthMiddleware(http.HandlerFunc(srv.HandleCreateSecret)))
-	mux.Handle("DELETE /v1/secrets/", srv.SessionAuthMiddleware(http.HandlerFunc(srv.HandleRevokeSecret)))
+	// Portal endpoints (session-authenticated)
+	mux.Handle("POST /api/v1/portal/secrets", srv.SessionAuthMiddleware(http.HandlerFunc(srv.HandleCreateSecret)))
+	mux.Handle("DELETE /api/v1/portal/secrets/", srv.SessionAuthMiddleware(http.HandlerFunc(srv.HandleRevokeSecret)))
+	mux.Handle("GET /api/v1/portal/secrets", srv.SessionAuthMiddleware(http.HandlerFunc(srv.HandleListSecrets)))
+	mux.Handle("POST /api/v1/portal/webhooks", srv.SessionAuthMiddleware(http.HandlerFunc(srv.HandleCreateWebhook)))
+	mux.Handle("GET /api/v1/portal/checkout-sessions", srv.SessionAuthMiddleware(http.HandlerFunc(srv.HandleListCheckoutSessions)))
 
-	// Apply API key authentication middleware to checkout endpoints
+	// Wave API endpoints (API key authenticated)
 	mux.Handle("POST /v1/checkout/sessions", srv.APIKeyAuthMiddleware(http.HandlerFunc(srv.HandleCreateCheckoutSession)))
 	mux.Handle("GET /v1/checkout/sessions/{id}", srv.APIKeyAuthMiddleware(http.HandlerFunc(srv.HandleGetCheckoutSession)))
 	mux.Handle("GET /v1/checkout/sessions", srv.APIKeyAuthMiddleware(http.HandlerFunc(srv.HandleGetCheckoutSessionByTransactionID)))
 	mux.Handle("GET /v1/checkout/sessions/search", srv.APIKeyAuthMiddleware(http.HandlerFunc(srv.HandleSearchCheckoutSessions)))
 	mux.Handle("POST /v1/checkout/sessions/{id}/expire", srv.APIKeyAuthMiddleware(http.HandlerFunc(srv.HandleExpireCheckoutSession)))
 	mux.Handle("POST /v1/checkout/sessions/{id}/refund", srv.APIKeyAuthMiddleware(http.HandlerFunc(srv.HandleRefundCheckoutSession)))
+
+	// Payment simulation endpoint (no authentication)
+	mux.HandleFunc("GET /pay/{session_id}", srv.HandlePaymentPageGET)
+	mux.HandleFunc("POST /pay/{session_id}", srv.HandlePaymentPagePOST)
 
 	server := &http.Server{
 		Addr:         ":" + cmp.Or(os.Getenv("PORT"), "8080"),

@@ -89,19 +89,21 @@ func (q *Queries) CreateCheckoutSession(ctx context.Context, arg CreateCheckoutS
 const createSecret = `-- name: CreateSecret :exec
 
 INSERT INTO secrets (
-	id, user_id, secret_hash, secret_type, permissions, display_hint
+	id, user_id, secret_hash, secret_type, permissions, display_hint, webhook_url, webhook_security_strategy
 ) VALUES (
-	?, ?, ?, ?, ?, ?
+	?, ?, ?, ?, ?, ?, ?, ?
 )
 `
 
 type CreateSecretParams struct {
-	ID          string
-	UserID      string
-	SecretHash  string
-	SecretType  string
-	Permissions string
-	DisplayHint string
+	ID                      string
+	UserID                  string
+	SecretHash              string
+	SecretType              string
+	Permissions             string
+	DisplayHint             string
+	WebhookUrl              sql.NullString
+	WebhookSecurityStrategy sql.NullString
 }
 
 // Secrets CRUD
@@ -113,6 +115,8 @@ func (q *Queries) CreateSecret(ctx context.Context, arg CreateSecretParams) erro
 		arg.SecretType,
 		arg.Permissions,
 		arg.DisplayHint,
+		arg.WebhookUrl,
+		arg.WebhookSecurityStrategy,
 	)
 	return err
 }
@@ -314,7 +318,7 @@ func (q *Queries) GetCheckoutSessionsByClientReference(ctx context.Context, clie
 }
 
 const getSecretByHash = `-- name: GetSecretByHash :one
-SELECT id, user_id, secret_hash, secret_type, permissions, display_hint, created_at, revoked_at FROM secrets WHERE secret_hash = ?
+SELECT id, user_id, secret_hash, secret_type, permissions, display_hint, created_at, revoked_at, webhook_url, webhook_security_strategy FROM secrets WHERE secret_hash = ?
 `
 
 func (q *Queries) GetSecretByHash(ctx context.Context, secretHash string) (Secret, error) {
@@ -329,12 +333,14 @@ func (q *Queries) GetSecretByHash(ctx context.Context, secretHash string) (Secre
 		&i.DisplayHint,
 		&i.CreatedAt,
 		&i.RevokedAt,
+		&i.WebhookUrl,
+		&i.WebhookSecurityStrategy,
 	)
 	return i, err
 }
 
 const getSecretByID = `-- name: GetSecretByID :one
-SELECT id, user_id, secret_hash, secret_type, permissions, display_hint, created_at, revoked_at FROM secrets WHERE id = ?
+SELECT id, user_id, secret_hash, secret_type, permissions, display_hint, created_at, revoked_at, webhook_url, webhook_security_strategy FROM secrets WHERE id = ?
 `
 
 func (q *Queries) GetSecretByID(ctx context.Context, id string) (Secret, error) {
@@ -349,6 +355,8 @@ func (q *Queries) GetSecretByID(ctx context.Context, id string) (Secret, error) 
 		&i.DisplayHint,
 		&i.CreatedAt,
 		&i.RevokedAt,
+		&i.WebhookUrl,
+		&i.WebhookSecurityStrategy,
 	)
 	return i, err
 }
@@ -401,8 +409,64 @@ func (q *Queries) GetUserByPhone(ctx context.Context, phoneNumber string) (User,
 	return i, err
 }
 
+const listCheckoutSessionsByUser = `-- name: ListCheckoutSessionsByUser :many
+SELECT id, amount, checkout_status, client_reference, currency, error_url, success_url, business_name, payment_status, transaction_id, aggregated_merchant_id, restrict_payer_mobile, enforce_payer_mobile, wave_launch_url, when_created, when_expires, when_completed, when_refunded, last_payment_error_code, last_payment_error_message
+FROM checkout_sessions
+ORDER BY when_created DESC 
+LIMIT ? OFFSET ?
+`
+
+type ListCheckoutSessionsByUserParams struct {
+	Limit  int64
+	Offset int64
+}
+
+func (q *Queries) ListCheckoutSessionsByUser(ctx context.Context, arg ListCheckoutSessionsByUserParams) ([]CheckoutSession, error) {
+	rows, err := q.db.QueryContext(ctx, listCheckoutSessionsByUser, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CheckoutSession{}
+	for rows.Next() {
+		var i CheckoutSession
+		if err := rows.Scan(
+			&i.ID,
+			&i.Amount,
+			&i.CheckoutStatus,
+			&i.ClientReference,
+			&i.Currency,
+			&i.ErrorUrl,
+			&i.SuccessUrl,
+			&i.BusinessName,
+			&i.PaymentStatus,
+			&i.TransactionID,
+			&i.AggregatedMerchantID,
+			&i.RestrictPayerMobile,
+			&i.EnforcePayerMobile,
+			&i.WaveLaunchUrl,
+			&i.WhenCreated,
+			&i.WhenExpires,
+			&i.WhenCompleted,
+			&i.WhenRefunded,
+			&i.LastPaymentErrorCode,
+			&i.LastPaymentErrorMessage,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listSecretsByUser = `-- name: ListSecretsByUser :many
-SELECT id, user_id, secret_hash, secret_type, permissions, display_hint, created_at, revoked_at FROM secrets WHERE user_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?
+SELECT id, user_id, secret_hash, secret_type, permissions, display_hint, created_at, revoked_at, webhook_url, webhook_security_strategy FROM secrets WHERE user_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?
 `
 
 type ListSecretsByUserParams struct {
@@ -429,6 +493,8 @@ func (q *Queries) ListSecretsByUser(ctx context.Context, arg ListSecretsByUserPa
 			&i.DisplayHint,
 			&i.CreatedAt,
 			&i.RevokedAt,
+			&i.WebhookUrl,
+			&i.WebhookSecurityStrategy,
 		); err != nil {
 			return nil, err
 		}
@@ -504,6 +570,50 @@ func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]User, e
 			&i.PhoneNumber,
 			&i.PinHash,
 			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWebhooksByUser = `-- name: ListWebhooksByUser :many
+SELECT id, user_id, secret_hash, secret_type, permissions, display_hint, created_at, revoked_at, webhook_url, webhook_security_strategy FROM secrets WHERE user_id = ? AND secret_type = 'WEBHOOK_SECRET' ORDER BY created_at DESC LIMIT ? OFFSET ?
+`
+
+type ListWebhooksByUserParams struct {
+	UserID string
+	Limit  int64
+	Offset int64
+}
+
+func (q *Queries) ListWebhooksByUser(ctx context.Context, arg ListWebhooksByUserParams) ([]Secret, error) {
+	rows, err := q.db.QueryContext(ctx, listWebhooksByUser, arg.UserID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Secret{}
+	for rows.Next() {
+		var i Secret
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.SecretHash,
+			&i.SecretType,
+			&i.Permissions,
+			&i.DisplayHint,
+			&i.CreatedAt,
+			&i.RevokedAt,
+			&i.WebhookUrl,
+			&i.WebhookSecurityStrategy,
 		); err != nil {
 			return nil, err
 		}
