@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wave Pool - Developer Portal</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom styles */
+        .container { max-width: 1200px; margin: 0 auto; padding: 0 1rem; }
+        .hidden { display: none; }
+    </style>
+</head>
+<body class="bg-base-100">
+    <div class="navbar bg-primary text-primary-content">
+        <div class="navbar-start">
+            <div class="dropdown">
+                <div tabindex="0" role="button" class="btn btn-ghost lg:hidden">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h8m-8 6h16"></path>
+                    </svg>
+                </div>
+            </div>
+            <a class="btn btn-ghost text-xl">Wave Pool</a>
+        </div>
+        <div class="navbar-center hidden lg:flex">
+            <ul class="menu menu-horizontal px-1" id="main-nav">
+                <li><a href="#" onclick="showPage('dashboard')">Dashboard</a></li>
+                <li><a href="#" onclick="showPage('api-keys')">API Keys</a></li>
+                <li><a href="#" onclick="showPage('webhooks')">Webhooks</a></li>
+            </ul>
+        </div>
+        <div class="navbar-end">
+            <button class="btn btn-ghost" id="logout-btn" onclick="logout()">Logout</button>
+        </div>
+    </div>
+
+    <!-- Login Page -->
+    <div id="login-page" class="container mx-auto mt-10">
+        <div class="max-w-md mx-auto">
+            <div class="card bg-base-200 shadow-xl">
+                <div class="card-body">
+                    <h2 class="card-title justify-center mb-6">Developer Portal Login</h2>
+                    <form id="login-form">
+                        <div class="form-control w-full mb-4">
+                            <label class="label">
+                                <span class="label-text">Phone Number</span>
+                            </label>
+                            <input type="tel" id="phone-input" class="input input-bordered w-full" placeholder="+221785626022" required />
+                        </div>
+                        <div class="form-control w-full mb-4">
+                            <label class="label">
+                                <span class="label-text">PIN</span>
+                            </label>
+                            <input type="password" id="pin-input" class="input input-bordered w-full" placeholder="1234" maxlength="4" required />
+                        </div>
+                        <div class="form-control mt-6">
+                            <button type="submit" class="btn btn-primary w-full">Login / Register</button>
+                        </div>
+                    </form>
+                    <div id="login-error" class="alert alert-error mt-4 hidden">
+                        <span id="login-error-text"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dashboard Page -->
+    <div id="dashboard-page" class="container mx-auto mt-6 hidden">
+        <h1 class="text-3xl font-bold mb-6">Dashboard</h1>
+        
+        <div class="stats shadow mb-6">
+            <div class="stat">
+                <div class="stat-title">Total Transactions</div>
+                <div class="stat-value" id="total-transactions">0</div>
+                <div class="stat-desc">This month</div>
+            </div>
+            <div class="stat">
+                <div class="stat-title">Successful</div>
+                <div class="stat-value text-success" id="successful-transactions">0</div>
+            </div>
+            <div class="stat">
+                <div class="stat-title">Failed</div>
+                <div class="stat-value text-error" id="failed-transactions">0</div>
+            </div>
+        </div>
+
+        <div class="card bg-base-200 shadow-xl">
+            <div class="card-body">
+                <h2 class="card-title">Recent Transactions</h2>
+                <div class="overflow-x-auto">
+                    <table class="table table-zebra">
+                        <thead>
+                            <tr>
+                                <th>Session ID</th>
+                                <th>Amount</th>
+                                <th>Currency</th>
+                                <th>Status</th>
+                                <th>Created</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="transactions-table">
+                            <!-- Transactions will be loaded here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- API Keys Page -->
+    <div id="api-keys-page" class="container mx-auto mt-6 hidden">
+        <div class="flex justify-between items-center mb-6">
+            <h1 class="text-3xl font-bold">API Keys</h1>
+            <button class="btn btn-primary" onclick="openCreateApiKeyModal()">Create API Key</button>
+        </div>
+        
+        <div class="card bg-base-200 shadow-xl">
+            <div class="card-body">
+                <div class="overflow-x-auto">
+                    <table class="table table-zebra">
+                        <thead>
+                            <tr>
+                                <th>Display Hint</th>
+                                <th>Permissions</th>
+                                <th>Created</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="api-keys-table">
+                            <!-- API Keys will be loaded here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Webhooks Page -->
+    <div id="webhooks-page" class="container mx-auto mt-6 hidden">
+        <div class="flex justify-between items-center mb-6">
+            <h1 class="text-3xl font-bold">Webhooks</h1>
+            <button class="btn btn-primary" onclick="openCreateWebhookModal()">Create Webhook</button>
+        </div>
+        
+        <div class="card bg-base-200 shadow-xl">
+            <div class="card-body">
+                <div class="overflow-x-auto">
+                    <table class="table table-zebra">
+                        <thead>
+                            <tr>
+                                <th>Display Hint</th>
+                                <th>URL</th>
+                                <th>Security</th>
+                                <th>Created</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="webhooks-table">
+                            <!-- Webhooks will be loaded here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create API Key Modal -->
+    <dialog id="create-api-key-modal" class="modal">
+        <div class="modal-box">
+            <form method="dialog">
+                <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
+            </form>
+            <h3 class="font-bold text-lg mb-4">Create API Key</h3>
+            <form id="create-api-key-form">
+                <div class="form-control w-full mb-4">
+                    <label class="label">
+                        <span class="label-text">Display Hint</span>
+                    </label>
+                    <input type="text" id="api-key-hint" class="input input-bordered w-full" placeholder="My API Key" required />
+                </div>
+                <div class="form-control w-full mb-4">
+                    <label class="label">
+                        <span class="label-text">Permissions</span>
+                    </label>
+                    <div class="flex flex-col space-y-2">
+                        <label class="cursor-pointer label">
+                            <span class="label-text">Checkout API</span> 
+                            <input type="checkbox" class="checkbox" value="CHECKOUT_API" checked />
+                        </label>
+                        <label class="cursor-pointer label">
+                            <span class="label-text">Balance API</span> 
+                            <input type="checkbox" class="checkbox" value="BALANCE_API" />
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-action">
+                    <button type="button" class="btn" onclick="document.getElementById('create-api-key-modal').close()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Create</button>
+                </div>
+            </form>
+        </div>
+    </dialog>
+
+    <!-- Create Webhook Modal -->
+    <dialog id="create-webhook-modal" class="modal">
+        <div class="modal-box">
+            <form method="dialog">
+                <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
+            </form>
+            <h3 class="font-bold text-lg mb-4">Create Webhook</h3>
+            <form id="create-webhook-form">
+                <div class="form-control w-full mb-4">
+                    <label class="label">
+                        <span class="label-text">Webhook URL</span>
+                    </label>
+                    <input type="url" id="webhook-url" class="input input-bordered w-full" placeholder="https://example.com/webhook" required />
+                </div>
+                <div class="form-control w-full mb-4">
+                    <label class="label">
+                        <span class="label-text">Display Hint</span>
+                    </label>
+                    <input type="text" id="webhook-hint" class="input input-bordered w-full" placeholder="My Webhook" required />
+                </div>
+                <div class="form-control w-full mb-4">
+                    <label class="label">
+                        <span class="label-text">Security Strategy</span>
+                    </label>
+                    <select id="webhook-security" class="select select-bordered w-full">
+                        <option value="shared_secret">Shared Secret</option>
+                        <option value="signing_secret">Signing Secret</option>
+                    </select>
+                </div>
+                <div class="modal-action">
+                    <button type="button" class="btn" onclick="document.getElementById('create-webhook-modal').close()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Create</button>
+                </div>
+            </form>
+        </div>
+    </dialog>
+
+    <!-- API Key Created Modal -->
+    <dialog id="api-key-created-modal" class="modal">
+        <div class="modal-box">
+            <h3 class="font-bold text-lg mb-4">API Key Created</h3>
+            <div class="alert alert-info mb-4">
+                <span>⚠️ This API key will only be shown once. Make sure to copy it now!</span>
+            </div>
+            <div class="form-control w-full mb-4">
+                <label class="label">
+                    <span class="label-text">API Key</span>
+                </label>
+                <div class="flex">
+                    <input type="text" id="new-api-key" class="input input-bordered flex-1 font-mono" readonly />
+                    <button class="btn btn-outline ml-2" onclick="copyToClipboard('new-api-key')">Copy</button>
+                </div>
+            </div>
+            <div class="modal-action">
+                <button class="btn btn-primary" onclick="document.getElementById('api-key-created-modal').close(); loadApiKeys();">Close</button>
+            </div>
+        </div>
+    </dialog>
+
+    <!-- Webhook Created Modal -->
+    <dialog id="webhook-created-modal" class="modal">
+        <div class="modal-box">
+            <h3 class="font-bold text-lg mb-4">Webhook Created</h3>
+            <div class="alert alert-info mb-4">
+                <span>⚠️ This webhook secret will only be shown once. Make sure to copy it now!</span>
+            </div>
+            <div class="form-control w-full mb-4">
+                <label class="label">
+                    <span class="label-text">Webhook Secret</span>
+                </label>
+                <div class="flex">
+                    <input type="text" id="new-webhook-secret" class="input input-bordered flex-1 font-mono" readonly />
+                    <button class="btn btn-outline ml-2" onclick="copyToClipboard('new-webhook-secret')">Copy</button>
+                </div>
+            </div>
+            <div class="modal-action">
+                <button class="btn btn-primary" onclick="document.getElementById('webhook-created-modal').close(); loadWebhooks();">Close</button>
+            </div>
+        </div>
+    </dialog>
+
+    <script src="app.js"></script>
+</body>
+</html>
