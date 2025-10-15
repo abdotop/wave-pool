@@ -13,7 +13,7 @@ export const defs = {
     output: STR("the api is healthy"),
     description: "Health check endpoint",
   }),
-  "POST/api/v1/auth/register": route({
+  "POST/api/v1/auth": route({
     input: OBJ({
       phone: STR("user phone number"),
       pin: STR("user pin code"),
