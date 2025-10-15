@@ -10,6 +10,9 @@ overrides:
 importers:
   .:
     dependencies:
+      lucide-preact:
+        specifier: ^0.545.0
+        version: 0.545.0(preact@10.27.2)
       preact:
         specifier: ^10.27.2
         version: 10.27.2
@@ -914,6 +917,13 @@ packages:
       integrity: sha512-KpNARQA3Iwv+jTA0utUVVbrh+Jlrr1Fv0e56GGzAFOXN7dk/FviaDW8LHmK52DlcH4WP2n6gI8vN1aesBFgo9w==,
     }
 
+  lucide-preact@0.545.0:
+    resolution: {
+      integrity: sha512-IUa8ZxrxzkG2VGUDWz1rvRLqoTVGFBL7JjTfIdrYy2l/ZAoI+O7zFmiuDQaqQjL3bel8x8uGEaa28OuIjeWYtw==,
+    }
+    peerDependencies:
+      preact: ^10.5.13
+
   magic-string@0.30.19:
     resolution: {
       integrity: sha512-2N21sPY9Ws53PZvsEpVtNuSW+ScYbQdp4b9qUaL+9QkHUrGFKo56Lg9Emg5s9V/qrtNBmiR01sYhUOwu3H+VOw==,
@@ -1677,6 +1687,10 @@ snapshots:
   lru-cache@5.1.1:
     dependencies:
       yallist: 3.1.1
+
+  lucide-preact@0.545.0(preact@10.27.2):
+    dependencies:
+      preact: 10.27.2
 
   magic-string@0.30.19:
     dependencies:

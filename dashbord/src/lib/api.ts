@@ -129,14 +129,16 @@ function createApiClient<T>(def: T, baseUrl = "") {
           $.peek().controller?.abort();
           $.value = { pending: 0 };
         },
-        fetch: async (input, headers: HeadersInit) => {
+        fetch: async (input, options?: Options | undefined) => {
           const prev = $.peek();
           try {
             const controller = new AbortController();
             prev.controller?.abort();
             $.value = { pending: Date.now(), controller, data: prev.data };
             const { signal } = controller;
-            $.value = { data: await fetcher(input, { signal, headers }) };
+            $.value = {
+              data: await fetcher(input, { signal, headers: options?.headers }),
+            };
           } catch (err) {
             $.value = (err instanceof DOMException && err.name === "AbortError")
               ? { pending: 0, data: prev.data }

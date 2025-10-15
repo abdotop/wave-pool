@@ -106,6 +106,14 @@ func (api *API) Auth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Store the refresh token in Redis
+	err = api.redis.Set(r.Context(), "refresh_token:"+refreshTokenString, user.ID, 7*24*time.Hour).Err()
+	if err != nil {
+		slog.ErrorContext(r.Context(), "Failed to store refresh token in Redis", "error", err)
+		http.Error(w, "Failed to store refresh token", http.StatusInternalServerError)
+		return
+	}
+
 	resp := response{
 		AccessToken:  accessTokenString,
 		RefreshToken: refreshTokenString,
