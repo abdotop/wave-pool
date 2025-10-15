@@ -4,7 +4,7 @@ import wavePollLogo from "/wave_pool.svg";
 import { api } from "./lib/api";
 
 const health = api["GET/api/health"].signal();
-const register = api["POST/api/v1/auth/register"].signal();
+const register = api["POST/api/v1/auth"].signal();
 
 register.fetch({
   phone: "+221785626022",

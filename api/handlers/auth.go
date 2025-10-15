@@ -17,7 +17,7 @@ import (
 )
 
 // registerUser handles user registration
-func (api *API) RegisterUser(w http.ResponseWriter, r *http.Request) {
+func (api *API) Auth(w http.ResponseWriter, r *http.Request) {
 	type request struct {
 		Phone string `json:"phone"`
 		Pin   string `json:"pin"`
@@ -51,31 +51,28 @@ func (api *API) RegisterUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check if user already exists
-	_, err := api.db.GetUserByPhone(r.Context(), req.Phone)
-	if err == nil {
-		slog.ErrorContext(r.Context(), "User with this phone number already exists", "phone", req.Phone)
-		http.Error(w, "User with this phone number already exists", http.StatusConflict)
-		return
-	}
-	if err != pgx.ErrNoRows {
+	user, err := api.db.GetUserByPhone(r.Context(), req.Phone)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			id := ksuid.New().String()
+			// Hash the PIN using Argon2id
+			salt := []byte(id) // In a real app, use a unique salt for each user
+			pinHash := argon2.IDKey([]byte(req.Pin), salt, 1, 64*1024, 4, 32)
+
+			// Create user
+			user, err = api.db.CreateUser(r.Context(), sqlc.CreateUserParams{
+				ID:      id,
+				Phone:   req.Phone,
+				PinHash: fmt.Sprintf("%x", pinHash),
+			})
+			if err != nil {
+				slog.ErrorContext(r.Context(), "Failed to create user", "error", err)
+				http.Error(w, "Failed to create user", http.StatusInternalServerError)
+				return
+			}
+		}
 		slog.ErrorContext(r.Context(), "Failed to check user existence", "error", err)
 		http.Error(w, "Failed to check user existence", http.StatusInternalServerError)
-		return
-	}
-	id := ksuid.New().String()
-	// Hash the PIN using Argon2id
-	salt := []byte(id) // In a real app, use a unique salt for each user
-	pinHash := argon2.IDKey([]byte(req.Pin), salt, 1, 64*1024, 4, 32)
-
-	// Create user
-	user, err := api.db.CreateUser(r.Context(), sqlc.CreateUserParams{
-		ID:      id,
-		Phone:   req.Phone,
-		PinHash: fmt.Sprintf("%x", pinHash),
-	})
-	if err != nil {
-		slog.ErrorContext(r.Context(), "Failed to create user", "error", err)
-		http.Error(w, "Failed to create user", http.StatusInternalServerError)
 		return
 	}
 

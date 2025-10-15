@@ -73,7 +73,7 @@ func main() {
 		w.Write([]byte("OK"))
 	})
 
-	router.Handle("POST /api/v1/auth/register", rateLimiter(http.HandlerFunc(api.RegisterUser)))
+	router.Handle("POST /api/v1/auth", rateLimiter(http.HandlerFunc(api.Auth)))
 
 	server := &http.Server{
 		Addr:         ":" + cmp.Or(os.Getenv("PORT"), "8080"),
