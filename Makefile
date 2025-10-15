@@ -1,5 +1,7 @@
 .PHONY: up down migrate-up migrate-down sqlc-generate help
 
+GOOSE = github.com/pressly/goose/v3/cmd/goose@latest
+
 up:
 	docker-compose up -d
 
@@ -7,13 +9,15 @@ down:
 	docker-compose down
 
 migrate-up:
-	cd api && goose -dir ./db/migrations up
+	cd api && go run $(GOOSE) postgres "postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}?sslmode=disable" -dir ./db/migrations up
 
 migrate-down:
-	cd api && goose -dir ./db/migrations down
+	cd api && go run $(GOOSE) postgres "postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}?sslmode=disable" -dir ./db/migrations down
 
 sqlc-generate:
 	cd api && sqlc generate
+
+
 
 help:
 	@echo "Available commands:"
