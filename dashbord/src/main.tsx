@@ -4,8 +4,16 @@ import wavePollLogo from "/wave_pool.svg";
 import { api } from "./lib/api";
 
 const health = api["GET/api/health"].signal();
+const register = api["POST/api/v1/auth/register"].signal();
+
+register.fetch({
+  phone: "+221785626022",
+  pin: "1234",
+});
 
 export function App() {
+  console.log(register.data);
+  
   return (
     <>
       <h1>Wave Pool</h1>
