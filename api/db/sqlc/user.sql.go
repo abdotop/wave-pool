@@ -9,12 +9,54 @@ import (
 	"context"
 )
 
+const createUser = `-- name: CreateUser :one
+INSERT INTO "users" (id, phone, pin_hash)
+VALUES ($1, $2, $3)
+RETURNING id, phone, pin_hash, status, created_at
+`
+
+type CreateUserParams struct {
+	ID      string `json:"id"`
+	Phone   string `json:"phone"`
+	PinHash string `json:"pin_hash"`
+}
+
+func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
+	row := q.db.QueryRow(ctx, createUser, arg.ID, arg.Phone, arg.PinHash)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Phone,
+		&i.PinHash,
+		&i.Status,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getUserByID = `-- name: GetUserByID :one
 SELECT id, phone, pin_hash, status, created_at FROM "users" WHERE id = $1
 `
 
 func (q *Queries) GetUserByID(ctx context.Context, id string) (User, error) {
 	row := q.db.QueryRow(ctx, getUserByID, id)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Phone,
+		&i.PinHash,
+		&i.Status,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getUserByPhone = `-- name: GetUserByPhone :one
+SELECT id, phone, pin_hash, status, created_at FROM "users" WHERE phone = $1
+`
+
+func (q *Queries) GetUserByPhone(ctx context.Context, phone string) (User, error) {
+	row := q.db.QueryRow(ctx, getUserByPhone, phone)
 	var i User
 	err := row.Scan(
 		&i.ID,
