@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/abdotop/wave-pool/db/sqlc"
+	"github.com/brianvoe/gofakeit/v6"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/jackc/pgx/v5"
 	"github.com/segmentio/ksuid"
@@ -69,6 +70,20 @@ func (api *API) Auth(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				slog.ErrorContext(r.Context(), "Failed to create user", "error", err)
 				http.Error(w, "Failed to create user", http.StatusInternalServerError)
+				return
+			}
+
+			// Create default business for the user
+			_, err = api.db.CreateBusiness(r.Context(), sqlc.CreateBusinessParams{
+				ID:       ksuid.New().String(),
+				Name:     gofakeit.Company(),
+				OwnerID:  user.ID,
+				Country:  "SN", // Default country Senegal
+				Currency: "XOF",
+			})
+			if err != nil {
+				slog.ErrorContext(r.Context(), "Failed to create default business", "error", err)
+				http.Error(w, "Failed to create default business", http.StatusInternalServerError)
 				return
 			}
 		} else {

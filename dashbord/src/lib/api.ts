@@ -62,6 +62,15 @@ const withoutBody = new Set([
   304, // NotModified
 ]);
 
+function fillUrlTemplate(urlTemplate: string, params: Record<string, unknown>) {
+  return urlTemplate.replace(/{([^}]+)}/g, (_, key) => {
+    if (key in params) {
+      return encodeURIComponent(String(params[key]));
+    }
+    throw new Error(`Missing parameter: ${key}`);
+  });
+}
+
 function createApiClient<T>(def: T, baseUrl = "") {
   type HandlerIO<K extends keyof T> = T[K] extends
     Handler<infer TInput, infer TOutput>
@@ -98,7 +107,7 @@ function createApiClient<T>(def: T, baseUrl = "") {
       }
 
       const response = await fetch(
-        url,
+        fillUrlTemplate(url, (input || {}) as Record<string, unknown>),
         { ...options, method, headers, body: bodyInput },
       );
       if (withoutBody.has(response.status)) return null as unknown as Output;

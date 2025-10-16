@@ -3,8 +3,11 @@ import wavePollLogo from "/wave_pool.svg";
 import senegalFlag from "../assets/flags/senegal.svg";
 import { Lock } from "lucide-preact";
 import { user } from "../lib/session";
+import { Signal } from "@preact/signals";
 
 const register = api["POST/api/v1/auth"].signal();
+
+const errorMessages = new Signal<string | null>(null);
 
 const handleSubmit = async (e: Event) => {
   e.preventDefault();
@@ -20,7 +23,7 @@ const handleSubmit = async (e: Event) => {
   });
   if (register.data) {
     if (typeof register.data === "string") {
-      register.error =  Error(register.data);
+      errorMessages.value = register.data;
       form.reset();
       return;
     }
@@ -32,6 +35,10 @@ const handleSubmit = async (e: Event) => {
         Authorization: `Bearer ${register.data.access_token}`,
       },
     });
+    form.reset();
+  }
+  if (register.error) {
+    errorMessages.value = register.error.message;
     form.reset();
   }
 };
@@ -55,8 +62,8 @@ export function LoginPage() {
           </div>
         </div>
         <div>
-          {register.error && (
-            <p className="text-red-500">{register.error.message}</p>
+          {errorMessages.value && (
+            <p className="text-red-500">{errorMessages.value}</p>
           )}
         </div>
 
@@ -68,7 +75,11 @@ export function LoginPage() {
               defaultValue="+221"
             >
               <option value="+221">
-                <img src={senegalFlag} alt="Senegal Flag" className="inline w-5 h-3 mr-2" />
+                <img
+                  src={senegalFlag}
+                  alt="Senegal Flag"
+                  className="inline w-5 h-3 mr-2"
+                />
                 +221
               </option>
             </select>

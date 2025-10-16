@@ -92,6 +92,10 @@ func main() {
 
 	// Protected endpoints
 	router.Handle("GET /api/v1/me", api.AuthMiddleware(http.HandlerFunc(api.GetMe)))
+	// API Keys
+	router.Handle("POST /api/v1/api-keys", api.AuthMiddleware(http.HandlerFunc(api.CreateAPIKey)))
+	router.Handle("GET /api/v1/api-keys", api.AuthMiddleware(http.HandlerFunc(api.ListAPIKeys)))
+	router.Handle("DELETE /api/v1/api-keys/{key_id}", api.AuthMiddleware(http.HandlerFunc(api.DeleteAPIKey)))
 
 	server := &http.Server{
 		Addr:         ":" + cmp.Or(os.Getenv("PORT"), "8080"),
