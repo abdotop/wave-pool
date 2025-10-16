@@ -14,6 +14,7 @@ import (
 	"github.com/abdotop/wave-pool/db/sqlc"
 	"github.com/abdotop/wave-pool/handlers"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/redis/go-redis/v9"
 )
 
 // Rate Limiter
@@ -64,7 +65,19 @@ func main() {
 
 	db := sqlc.New(dbpool)
 
-	api := handlers.NewAPI(db)
+	// Redis connection
+	redisAddr := os.Getenv("REDIS_ADDR")
+	if redisAddr == "" {
+		redisAddr = "localhost:6379"
+	}
+	rdb := redis.NewClient(&redis.Options{
+		Addr: redisAddr,
+	})
+	if err := rdb.Ping(ctx).Err(); err != nil {
+		log.Fatal("Unable to connect to Redis:", err)
+	}
+
+	api := handlers.NewAPI(db, rdb)
 
 	// Simple HTTP server with a health check endpoint
 	router := http.NewServeMux()
@@ -74,6 +87,11 @@ func main() {
 	})
 
 	router.Handle("POST /api/v1/auth", rateLimiter(http.HandlerFunc(api.Auth)))
+	router.Handle("POST /api/v1/auth/refresh", http.HandlerFunc(api.Refresh))
+	router.Handle("DELETE /api/v1/auth/logout", http.HandlerFunc(api.Logout))
+
+	// Protected endpoints
+	router.Handle("GET /api/v1/me", api.AuthMiddleware(http.HandlerFunc(api.GetMe)))
 
 	server := &http.Server{
 		Addr:         ":" + cmp.Or(os.Getenv("PORT"), "8080"),
