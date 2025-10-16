@@ -5,6 +5,11 @@ import { api } from "../lib/api";
 import { user } from "../lib/session";
 
 const logout = api["DELETE/api/v1/auth/logout"].signal();
+const apiKeys = api["GET/api/v1/api-keys"].signal();
+apiKeys.fetch(undefined, {
+  headers: { Authorization: `Bearer ${localStorage.getItem("access_token")}` },
+});
+
 const logoutHandler = async (e: Event) => {
   e.preventDefault();
   const refreshToken = localStorage.getItem("refresh_token");
@@ -15,9 +20,29 @@ const logoutHandler = async (e: Event) => {
       localStorage.removeItem("refresh_token");
       localStorage.removeItem("expires_in");
       user.reset();
+      navigate({ params: { nav: "login" } });
     }
   }
 };
+
+const revokeApiKey = async (keyId: string) => {
+  if (keyId) {
+    const token = localStorage.getItem("access_token");
+    if (token) {
+      const deleteApiKey = api["DELETE/api/v1/api-keys/{key_id}"].signal();
+      await deleteApiKey.fetch(undefined, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (deleteApiKey.data !== undefined) {
+        // Refresh the API keys list
+        apiKeys.fetch(undefined, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      }
+    }
+  }
+}
+
 const TabButton = ({ name }: { name: string }) => (
   <A
     params={{ tab: name.toLowerCase().replace(" ", "-") }}
@@ -202,12 +227,12 @@ export function DeveloperPortal() {
               className="flex items-center gap-3 cursor-pointer hover:bg-gray-100 px-3 py-1 rounded-lg transition-colors"
             >
               <div className="text-right">
-                <div className="font-semibold text-gray-900">Pengouin Shop</div>
-                <div className="text-sm text-gray-500">SN Pingouin Shop</div>
+                <div className="font-semibold text-gray-900">{user.data?.business.name}</div>
+                <div className="text-sm text-gray-500">{user.data?.business.country} {user.data?.business.name}</div>
               </div>
               <div className="avatar placeholder">
                 <div className="bg-cyan-400 text-white rounded-full w-10 h-10 flex items-center justify-center">
-                  <span className="text-lg font-semibold">P</span>
+                  <span className="text-lg font-semibold">{user.data?.business.name[0]}</span>
                 </div>
               </div>
             </div>

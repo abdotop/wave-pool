@@ -39,6 +39,7 @@ type Balance struct {
 
 type Business struct {
 	ID        string             `json:"id"`
+	OwnerID   string             `json:"owner_id"`
 	Name      string             `json:"name"`
 	Country   string             `json:"country"`
 	Currency  string             `json:"currency"`

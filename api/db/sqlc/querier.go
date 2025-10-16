@@ -9,9 +9,15 @@ import (
 )
 
 type Querier interface {
+	CreateAPIKey(ctx context.Context, arg CreateAPIKeyParams) (ApiKey, error)
+	CreateBusiness(ctx context.Context, arg CreateBusinessParams) (Business, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
+	GetAPIKeyByID(ctx context.Context, id string) (ApiKey, error)
+	GetBusinessByOwnerID(ctx context.Context, ownerID string) (Business, error)
 	GetUserByID(ctx context.Context, id string) (User, error)
 	GetUserByPhone(ctx context.Context, phone string) (User, error)
+	ListAPIKeys(ctx context.Context, businessID string) ([]ListAPIKeysRow, error)
+	RevokeAPIKey(ctx context.Context, arg RevokeAPIKeyParams) error
 }
 
 var _ Querier = (*Queries)(nil)

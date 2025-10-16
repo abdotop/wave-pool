@@ -10,6 +10,7 @@ CREATE TABLE "users" (
 
 CREATE TABLE "business" (
     "id" char(27) PRIMARY KEY,
+    "owner_id" char(27) UNIQUE NOT NULL REFERENCES users(id),
     "name" text NOT NULL,
     "country" char(2) NOT NULL,
     "currency" char(3) NOT NULL,
