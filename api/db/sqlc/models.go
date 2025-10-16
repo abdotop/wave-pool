@@ -85,14 +85,15 @@ type User struct {
 }
 
 type Webhook struct {
-	ID         string             `json:"id"`
-	BusinessID string             `json:"business_id"`
-	Url        string             `json:"url"`
-	Strategy   string             `json:"strategy"`
-	Secret     string             `json:"secret"`
-	Events     []string           `json:"events"`
-	Status     pgtype.Text        `json:"status"`
-	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+	ID              string             `json:"id"`
+	BusinessID      string             `json:"business_id"`
+	Url             string             `json:"url"`
+	SigningStrategy string             `json:"signing_strategy"`
+	Secret          string             `json:"secret"`
+	Events          []string           `json:"events"`
+	Status          string             `json:"status"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
 }
 
 type WebhookDelivery struct {

@@ -96,4 +96,67 @@ export const defs = {
     }, "path parameter"),
     description: "Revoke (delete) an API key by its ID",
   }),
+  "POST/api/v1/webhooks": route({
+    input: OBJ({
+      url: STR("URL to which the webhook will send POST requests"),
+      signing_strategy: STR("signing strategy for securing webhook payloads"),
+      events: ARR(STR("events that trigger the webhook"), "array of events"),
+    }, "request body"),
+    output: OBJ({
+      id: STR("webhook ID"),
+      business_id: STR("associated business ID"),
+      url: STR("webhook URL"),
+      signing_strategy: STR("signing strategy for securing webhook payloads"),
+      secret: STR("webhook secret (only shown once)"),
+      events: ARR(STR("events that trigger the webhook"), "array of events"),
+      status: STR("webhook status: active or disabled"),
+      created_at: STR("webhook creation timestamp"),
+    }, "response body"),
+    description: "Create a new webhook",
+  }),
+  "GET/api/v1/webhooks": route({
+    output: ARR(
+      OBJ({
+        id: STR("webhook ID"),
+        business_id: STR("associated business ID"),
+        url: STR("webhook URL"),
+        signing_strategy: STR("signing strategy for securing webhook payloads"),
+        events: ARR(STR("events that trigger the webhook"), "array of events"),
+        status: STR("webhook status: active or disabled"),
+        created_at: STR("webhook creation timestamp"),
+      }, "webhook object"),
+      "array of webhooks",
+    ),
+    description: "List all webhooks for the authenticated user's business",
+  }),
+  "PUT/api/v1/webhooks/{webhook_id}": route({
+    input: OBJ({
+      webhook_id: STR("ID of the webhook to update"),
+      url: STR("new URL for the webhook"),
+      signing_strategy: STR(
+        "new signing strategy for securing webhook payloads",
+      ),
+      events: ARR(
+        STR("new events that trigger the webhook"),
+        "array of events",
+      ),
+      status: STR("new status for the webhook: active or disabled"),
+    }, "request body"),
+    output: OBJ({
+      id: STR("webhook ID"),
+      business_id: STR("associated business ID"),
+      url: STR("webhook URL"),
+      signing_strategy: STR("signing strategy for securing webhook payloads"),
+      events: ARR(STR("events that trigger the webhook"), "array of events"),
+      status: STR("webhook status: active or disabled"),
+      created_at: STR("webhook creation timestamp"),
+    }, "response body"),
+    description: "Update an existing webhook by its ID",
+  }),
+  "DELETE/api/v1/webhooks/{webhook_id}": route({
+    input: OBJ({
+      webhook_id: STR("ID of the webhook to delete"),
+    }, "path parameter"),
+    description: "Delete a webhook by its ID",
+  }),
 } as const;

@@ -1,16 +1,36 @@
-import { AlertCircle, Code2, Copy, Info, MoreVertical } from "lucide-preact";
+import {
+  AlertCircle,
+  CheckCircle,
+  Code2,
+  Copy,
+  Info,
+  MoreVertical,
+} from "lucide-preact";
 import wavePollLogo from "/wave_pool.svg";
 import { A, navigate, url } from "../lib/router";
 import { api } from "../lib/api";
 import { user } from "../lib/session";
 import { useState } from "preact/hooks";
 import { Dialog } from "../components/Dialog";
+import { Signal } from "@preact/signals";
 
-const logout = api["DELETE/api/v1/auth/logout"].signal();
-const apiKeys = api["GET/api/v1/api-keys"].signal();
-apiKeys.fetch(undefined, {
+const options = () => ({
   headers: { Authorization: `Bearer ${localStorage.getItem("access_token")}` },
 });
+const logout = api["DELETE/api/v1/auth/logout"].signal();
+const apiKeys = api["GET/api/v1/api-keys"].signal();
+const webhooks = api["GET/api/v1/webhooks"].signal();
+const createWebhook = api["POST/api/v1/webhooks"].signal();
+apiKeys.fetch(undefined, options());
+webhooks.fetch(undefined, options());
+
+const secretData = new Signal<
+  {
+    title: string;
+    description: string;
+    apiKey: string;
+  } | null
+>(null);
 
 const logoutHandler = async (e: Event) => {
   e.preventDefault();
@@ -32,15 +52,11 @@ const revokeApiKey = async (keyId: string) => {
     const token = localStorage.getItem("access_token");
     if (token) {
       const deleteApiKey = api["DELETE/api/v1/api-keys/{key_id}"].signal();
-      await deleteApiKey.fetch({ key_id: keyId }, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      await deleteApiKey.fetch({ key_id: keyId }, options());
 
       if (deleteApiKey.data !== undefined) {
         // Refresh the API keys list
-        apiKeys.fetch(undefined, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        apiKeys.fetch(undefined, options());
       }
     }
   }
@@ -94,38 +110,33 @@ function WebhooksSection() {
               </tr>
             </thead>
             <tbody>
-              <tr className="border-b border-gray-100 hover:bg-gray-50">
-                <td className="text-gray-900">https://asdf.qwer</td>
-                <td>
-                  <div className="flex items-center gap-2">
-                    <AlertCircle className="w-5 h-5 text-red-500" />
-                  </div>
-                </td>
-                <td className="text-gray-700">SHARED_SECRET</td>
-                <td className="text-gray-700">checkout.session.completed</td>
-                <td className="text-gray-700">9 July 2024 at 15:27</td>
-                <td className="text-right">
-                  <button className="btn btn-ghost btn-sm">
-                    <MoreVertical className="w-5 h-5 text-gray-500" />
-                  </button>
-                </td>
-              </tr>
-              <tr className="hover:bg-gray-50">
-                <td className="text-gray-900">https://qwer.asdf</td>
-                <td>
-                  <div className="flex items-center gap-2">
-                    <AlertCircle className="w-5 h-5 text-red-500" />
-                  </div>
-                </td>
-                <td className="text-gray-700">SHARED_SECRET</td>
-                <td className="text-gray-700">b2b.payment_received</td>
-                <td className="text-gray-700">9 July 2024 at 15:27</td>
-                <td className="text-right">
-                  <button className="btn btn-ghost btn-sm">
-                    <MoreVertical className="w-5 h-5 text-gray-500" />
-                  </button>
-                </td>
-              </tr>
+              {webhooks.data?.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="text-center py-4 text-gray-500">
+                    No webhooks found. Add one to get started.
+                  </td>
+                </tr>
+              )}
+              {webhooks.data?.map((webhook) => (
+                <tr className="border-b border-gray-100 hover:bg-gray-50">
+                  <td className="text-gray-900">{webhook.url}</td>
+                  <td>
+                    <div className="flex items-center gap-2">
+                      {webhook.status === "active"
+                        ? <CheckCircle className="w-5 h-5 text-green-500" />
+                        : <AlertCircle className="w-5 h-5 text-red-500" />}
+                    </div>
+                  </td>
+                  <td className="text-gray-700">{webhook.signing_strategy}</td>
+                  <td className="text-gray-700">{webhook.events.join(", ")}</td>
+                  <td className="text-gray-700">{webhook.created_at}</td>
+                  <td className="text-right">
+                    <button className="btn btn-ghost btn-sm">
+                      <MoreVertical className="w-5 h-5 text-gray-500" />
+                    </button>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
@@ -214,20 +225,52 @@ function AddWebhookModal() {
     }));
   };
 
-  // const handleSubmit = () => {
-  //     webhookUrl,
-  //     securityStrategy,
-  //     eventSubscriptions,
-  //   })
-  //   // Close modal and reset form
-  //   const modal = document.getElementById("add_webhook_modal") as HTMLDialogElement
-  //   modal?.close()
-  // }
+  const handleSubmit = () => {
+    const selectedEvents = Object.keys(eventSubscriptions).filter(
+      (event) => eventSubscriptions[event as keyof typeof eventSubscriptions],
+    );
 
-  // const handleCancel = () => {
-  //   const modal = document.getElementById("add_webhook_modal") as HTMLDialogElement
-  //   modal?.close()
-  // }
+    if (!webhookUrl) {
+      alert("Please enter a webhook URL.");
+      return;
+    }
+
+    if (selectedEvents.length === 0) {
+      alert("Please select at least one event subscription.");
+      return;
+    }
+
+    createWebhook.fetch({
+      url: webhookUrl,
+      signing_strategy: securityStrategy,
+      events: selectedEvents,
+    }, options()).then(() => {
+      if (createWebhook.data) {
+        // Refresh the webhooks list
+        webhooks.fetch(undefined, options());
+        // Reset form fields
+        setWebhookUrl("");
+        setSecurityStrategy("SIGNING_SECRET");
+        setEventSubscriptions({
+          "b2b.payment_received": false,
+          "b2b.payment_failed": false,
+          "checkout.session.completed": false,
+          "checkout.session.payment_failed": false,
+          "merchant.payment_received": false,
+        });
+        secretData.value = {
+          title: "Webhook created",
+          description:
+            "Keep your webhook secret safe. You won't be able to see it again.",
+          apiKey: createWebhook.data.secret,
+        };
+        createWebhook.reset();
+        navigate({ params: { dialog: "secret_modal" } });
+      } else if (createWebhook.error) {
+        alert(`Error: ${createWebhook.error.message}`);
+      }
+    });
+  };
 
   return (
     <Dialog class="modal" id="create-webhook">
@@ -314,8 +357,10 @@ function AddWebhookModal() {
               Cancel
             </button>
           </form>
-          <button // onClick={handleSubmit}
-           className="btn bg-cyan-400 hover:bg-cyan-500 text-white border-none text-base px-6">
+          <button
+            onClick={handleSubmit}
+            className="btn bg-cyan-400 hover:bg-cyan-500 text-white border-none text-base px-6"
+          >
             Submit
           </button>
         </div>
@@ -324,27 +369,29 @@ function AddWebhookModal() {
   );
 }
 
-function CreateApiKeyModal() {
+function SecretModal() {
+  if (!secretData.value) return null;
+
   const [isSaved, setIsSaved] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  const apiKey =
-    "wave_sn_prod_sk_1a2b3c4d5e6f7g8h9i0j1k2l3m4n5o6p7q8r9s0t1u2v3w4x5y6z7a8b9c0d1e2f3g4h5i6j7k8l9m0n1o2p3q4r5s6t7u8v9w0x1y2z3a4b5c6d7e8f9g0h1i2j3k4l5m6n7o8p9q0r1s2t3u4v5w6x7y8z9a0b1c2d3e4f5g6h7i8j9k0l1m2n3o4p5q6r7s8t9u0v1w2x3y4z5a6b7c8d9e0f1g2h3i4j5k6l7m8n9o0p1q2r3s4t5u6v7w8x9y0z";
-
   const handleCopy = () => {
-    navigator.clipboard.writeText(apiKey);
+    navigator.clipboard.writeText(secretData.value?.apiKey || "");
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
   const handleClose = () => {
+    secretData.value = null;
     setIsSaved(false);
   };
 
   return (
-    <Dialog id="create_api_key_modal" className="modal">
+    <Dialog onClose={handleClose} id="secret_modal" className="modal">
       <div className="modal-box max-w-3xl bg-white">
-        <h3 className="text-2xl font-normal text-gray-900 mb-6">New API Key</h3>
+        <h3 className="text-2xl font-normal text-gray-900 mb-6">
+          {secretData.value?.title}
+        </h3>
 
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
           <div className="flex gap-3">
@@ -365,9 +412,9 @@ function CreateApiKeyModal() {
         <div className="flex gap-2 mb-6">
           <input
             type="text"
-            value={apiKey}
+            value={secretData.value?.apiKey || ""}
             readOnly
-            className="input input-bordered flex-1 font-mono text-sm bg-gray-50"
+            className="input input-bordered flex-1 font-mono text-sm bg-gray-50 text-gray-900"
           />
           <button
             onClick={handleCopy}
@@ -486,7 +533,7 @@ export function DeveloperPortal() {
           </div>
         </main>
         <AddWebhookModal />
-        <CreateApiKeyModal />
+        <SecretModal />
       </div>
     </div>
   );
