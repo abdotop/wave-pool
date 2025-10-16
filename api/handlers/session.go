@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"log"
 	"log/slog"
 	"net/http"
 	"os"
@@ -23,14 +22,15 @@ const userContextKey = contextKey("user")
 func (api *API) AuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		authHeader := r.Header.Get("Authorization")
-		log.Printf("Authorization Header: %s", authHeader)
 		if authHeader == "" {
+			slog.ErrorContext(r.Context(), "Authorization header missing")
 			http.Error(w, "Authorization header required", http.StatusUnauthorized)
 			return
 		}
 
 		tokenParts := strings.Split(authHeader, " ")
 		if len(tokenParts) != 2 || tokenParts[0] != "Bearer" {
+			slog.ErrorContext(r.Context(), "Invalid Authorization header format", "header", authHeader)
 			http.Error(w, "Invalid Authorization header format", http.StatusUnauthorized)
 			return
 		}
@@ -49,6 +49,7 @@ func (api *API) AuthMiddleware(next http.Handler) http.Handler {
 
 		if err != nil {
 			if err == jwt.ErrSignatureInvalid {
+				slog.ErrorContext(r.Context(), "Invalid token signature", "error", err)
 				http.Error(w, "Invalid token signature", http.StatusUnauthorized)
 				return
 			}
@@ -57,6 +58,7 @@ func (api *API) AuthMiddleware(next http.Handler) http.Handler {
 		}
 
 		if !token.Valid {
+			slog.ErrorContext(r.Context(), "Token is not valid")
 			http.Error(w, "Token is not valid", http.StatusUnauthorized)
 			return
 		}
@@ -97,6 +99,7 @@ func (api *API) Refresh(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if err != nil {
+		slog.ErrorContext(r.Context(), "Invalid refresh token", "error", err)
 		http.Error(w, "Invalid refresh token", http.StatusUnauthorized)
 		return
 	}
@@ -108,6 +111,7 @@ func (api *API) Refresh(w http.ResponseWriter, r *http.Request) {
 
 	userID, ok := (*claims)["sub"].(string)
 	if !ok {
+		slog.ErrorContext(r.Context(), "Invalid user ID in token")
 		http.Error(w, "Invalid user ID in token", http.StatusUnauthorized)
 		return
 	}
@@ -115,6 +119,7 @@ func (api *API) Refresh(w http.ResponseWriter, r *http.Request) {
 	// Check if the refresh token is in Redis
 	_, err = api.redis.Get(r.Context(), "refresh_token:"+req.RefreshToken).Result()
 	if err == redis.Nil {
+		slog.ErrorContext(r.Context(), "Refresh token not found in Redis")
 		http.Error(w, "Refresh token not found", http.StatusUnauthorized)
 		return
 	} else if err != nil {

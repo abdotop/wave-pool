@@ -111,7 +111,7 @@ function createApiClient<T>(def: T, baseUrl = "") {
         try {
           const result = (def[urlKey] as unknown as Handler<any, any>).output
             ?.assert(body);
-          if (response.ok && result !== undefined) return result as Output;
+          if (result !== undefined) return result as Output;
         } catch {
           // ignore json parse error, we throw below
         }

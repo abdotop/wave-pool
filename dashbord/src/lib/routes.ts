@@ -1,5 +1,5 @@
 import type { Handler } from "./api";
-import { type Def, NUM, OBJ, STR } from "./validator";
+import { type Def, NUM, OBJ, STR, UNION } from "./validator";
 
 export const route = <TInput, TOutput>(
   h: TInput extends Def ? TOutput extends Def ? Handler<TInput, TOutput>
@@ -18,11 +18,14 @@ export const defs = {
       phone: STR("user phone number"),
       pin: STR("user pin code"),
     }, "request body"),
-    output: OBJ({
-      access_token: STR("JWT access token"),
-      refresh_token: STR("JWT refresh token"),
-      expires_in: NUM("token expiration time in seconds"),
-    }, "response body"),
+    output: UNION(
+      OBJ({
+        access_token: STR("JWT access token"),
+        refresh_token: STR("JWT refresh token"),
+        expires_in: NUM("token expiration time in seconds"),
+      }, "response body"),
+      STR("error message"),
+    ),
     description: "Register a new user",
   }),
   "GET/api/v1/me": route({
