@@ -1,8 +1,10 @@
-import { AlertCircle, Code2, MoreVertical } from "lucide-preact";
+import { AlertCircle, Code2, Copy, Info, MoreVertical } from "lucide-preact";
 import wavePollLogo from "/wave_pool.svg";
 import { A, navigate, url } from "../lib/router";
 import { api } from "../lib/api";
 import { user } from "../lib/session";
+import { useState } from "preact/hooks";
+import { Dialog } from "../components/Dialog";
 
 const logout = api["DELETE/api/v1/auth/logout"].signal();
 const apiKeys = api["GET/api/v1/api-keys"].signal();
@@ -30,9 +32,10 @@ const revokeApiKey = async (keyId: string) => {
     const token = localStorage.getItem("access_token");
     if (token) {
       const deleteApiKey = api["DELETE/api/v1/api-keys/{key_id}"].signal();
-      await deleteApiKey.fetch(undefined, {
+      await deleteApiKey.fetch({ key_id: keyId }, {
         headers: { Authorization: `Bearer ${token}` },
       });
+
       if (deleteApiKey.data !== undefined) {
         // Refresh the API keys list
         apiKeys.fetch(undefined, {
@@ -60,10 +63,12 @@ function WebhooksSection() {
   return (
     <>
       <div className="flex justify-end mb-6">
-        <button // onClick={onAddClick}
-         className="btn btn-sm bg-cyan-400 hover:bg-cyan-500 text-white border-none normal-case">
+        <A
+          params={{ dialog: "create-webhook" }}
+          className="btn btn-sm bg-cyan-400 hover:bg-cyan-500 text-white border-none normal-case"
+        >
           Add new webhook
-        </button>
+        </A>
       </div>
       <div className="bg-white rounded-lg shadow-sm border border-gray-200">
         <div className="overflow-x-auto">
@@ -133,9 +138,12 @@ function ApiKeysSection() {
   return (
     <>
       <div className="flex justify-end mb-6">
-        <button className="btn btn-sm bg-cyan-400 hover:bg-cyan-500 text-white border-none normal-case">
+        <A
+          params={{ dialog: "create-api-key" }}
+          className="btn btn-sm bg-cyan-400 hover:bg-cyan-500 text-white border-none normal-case"
+        >
           Create API Key
-        </button>
+        </A>
       </div>
 
       <div className="bg-white rounded-lg shadow-sm border border-gray-200">
@@ -155,44 +163,249 @@ function ApiKeysSection() {
               </tr>
             </thead>
             <tbody>
-              <tr className="border-b border-gray-100 hover:bg-gray-50">
-                <td className="text-gray-900">
-                  <span className="font-mono">wave_sn_prod_....●●●●</span>
-                </td>
-                <td className="text-gray-700">Balance API</td>
-                <td className="text-right">
-                  <button className="btn btn-sm btn-outline border-cyan-400 text-cyan-400 hover:bg-cyan-50 hover:border-cyan-500 normal-case">
-                    Revoke
-                  </button>
-                </td>
-              </tr>
-              <tr className="border-b border-gray-100 hover:bg-gray-50">
-                <td className="text-gray-900">
-                  <span className="font-mono">wave_sn_prod_....●●●●</span>
-                </td>
-                <td className="text-gray-700">Balance API, Checkout API</td>
-                <td className="text-right">
-                  <button className="btn btn-sm btn-outline border-cyan-400 text-cyan-400 hover:bg-cyan-50 hover:border-cyan-500 normal-case">
-                    Revoke
-                  </button>
-                </td>
-              </tr>
-              <tr className="hover:bg-gray-50">
-                <td className="text-gray-900">
-                  <span className="font-mono">wave_sn_test_....●●●●</span>
-                </td>
-                <td className="text-gray-700">Balance API, Checkout API</td>
-                <td className="text-right">
-                  <button className="btn btn-sm btn-outline border-cyan-400 text-cyan-400 hover:bg-cyan-50 hover:border-cyan-500 normal-case">
-                    Revoke
-                  </button>
-                </td>
-              </tr>
+              {apiKeys.data?.length === 0 && (
+                <tr>
+                  <td colSpan={3} className="text-center py-4 text-gray-500">
+                    No API keys found. Create one to get started.
+                  </td>
+                </tr>
+              )}
+              {apiKeys.data?.map((key) => (
+                <tr className="border-b border-gray-100 hover:bg-gray-50">
+                  <td className="text-gray-900">
+                    <span className="font-mono">{key.prefix}●●●●</span>
+                  </td>
+                  <td className="text-gray-700">{key.scopes.join(", ")}</td>
+                  <td className="text-right">
+                    <button
+                      onClick={() => {
+                        revokeApiKey(key.id);
+                      }}
+                      className="btn btn-sm btn-outline border-cyan-400 text-cyan-400 hover:bg-cyan-50 hover:border-cyan-500 normal-case"
+                    >
+                      Revoke
+                    </button>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
       </div>
     </>
+  );
+}
+
+function AddWebhookModal() {
+  const [webhookUrl, setWebhookUrl] = useState("");
+  const [securityStrategy, setSecurityStrategy] = useState("SIGNING_SECRET");
+  const [eventSubscriptions, setEventSubscriptions] = useState({
+    "b2b.payment_received": false,
+    "b2b.payment_failed": false,
+    "checkout.session.completed": false,
+    "checkout.session.payment_failed": false,
+    "merchant.payment_received": false,
+  });
+
+  const handleCheckboxChange = (event: string) => {
+    setEventSubscriptions((prev) => ({
+      ...prev,
+      [event]: !prev[event as keyof typeof prev],
+    }));
+  };
+
+  // const handleSubmit = () => {
+  //     webhookUrl,
+  //     securityStrategy,
+  //     eventSubscriptions,
+  //   })
+  //   // Close modal and reset form
+  //   const modal = document.getElementById("add_webhook_modal") as HTMLDialogElement
+  //   modal?.close()
+  // }
+
+  // const handleCancel = () => {
+  //   const modal = document.getElementById("add_webhook_modal") as HTMLDialogElement
+  //   modal?.close()
+  // }
+
+  return (
+    <Dialog class="modal" id="create-webhook">
+      <div className="modal-box max-w-4xl bg-white">
+        <h3 className="text-2xl font-normal text-gray-900 mb-8">
+          Add new webhook
+        </h3>
+        <div className="mb-8">
+          <label className="block mb-2">
+            <span className="text-cyan-400 text-sm">Webhook URL *</span>
+          </label>
+          <input
+            type="text"
+            value={webhookUrl}
+            onChange={(e) =>
+              setWebhookUrl((e.target as HTMLInputElement).value)}
+            placeholder="https://"
+            className="input input-bordered w-full border-2 border-cyan-400 focus:border-cyan-400 focus:outline-none text-base"
+          />
+        </div>
+        <div className="mb-8">
+          <div className="flex items-center gap-2 mb-4">
+            <span className="text-gray-600 text-base">Security Strategy</span>
+            <Info className="w-5 h-5 text-gray-400" />
+          </div>
+          <div className="space-y-3">
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="radio"
+                name="security"
+                value="SIGNING_SECRET"
+                checked={securityStrategy === "SIGNING_SECRET"}
+                onChange={(e) =>
+                  setSecurityStrategy((e.target as HTMLInputElement).value)}
+                className="radio radio-lg border-2 checked:bg-black"
+              />
+              <span className="text-base text-gray-900">SIGNING_SECRET</span>
+            </label>
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="radio"
+                name="security"
+                value="SHARED_SECRET"
+                checked={securityStrategy === "SHARED_SECRET"}
+                onChange={(e) =>
+                  setSecurityStrategy((e.target as HTMLInputElement).value)}
+                className="radio radio-lg border-2 checked:bg-black"
+              />
+              <span className="text-base text-gray-900">SHARED_SECRET</span>
+            </label>
+          </div>
+        </div>
+        <div className="mb-8">
+          <div className="flex items-center gap-2 mb-4">
+            <span className="text-gray-600 text-base">Event subscriptions</span>
+            <Info className="w-5 h-5 text-gray-400" />
+          </div>
+          <div className="space-y-3">
+            {Object.keys(eventSubscriptions).map((event) => (
+              <label
+                key={event}
+                className="flex items-center gap-3 cursor-pointer"
+              >
+                <input
+                  type="checkbox"
+                  checked={eventSubscriptions[
+                    event as keyof typeof eventSubscriptions
+                  ]}
+                  onChange={() => handleCheckboxChange(event)}
+                  className="checkbox checkbox-lg border-2 border-gray-300 [--chkbg:black] [--chkfg:white]"
+                />
+                <span className="text-base text-gray-900">{event}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-3 mt-8">
+          <form method="dialog">
+            <button
+              type="submit"
+              className="btn btn-ghost text-gray-700 text-base px-6"
+            >
+              Cancel
+            </button>
+          </form>
+          <button // onClick={handleSubmit}
+           className="btn bg-cyan-400 hover:bg-cyan-500 text-white border-none text-base px-6">
+            Submit
+          </button>
+        </div>
+      </div>
+    </Dialog>
+  );
+}
+
+function CreateApiKeyModal() {
+  const [isSaved, setIsSaved] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const apiKey =
+    "wave_sn_prod_sk_1a2b3c4d5e6f7g8h9i0j1k2l3m4n5o6p7q8r9s0t1u2v3w4x5y6z7a8b9c0d1e2f3g4h5i6j7k8l9m0n1o2p3q4r5s6t7u8v9w0x1y2z3a4b5c6d7e8f9g0h1i2j3k4l5m6n7o8p9q0r1s2t3u4v5w6x7y8z9a0b1c2d3e4f5g6h7i8j9k0l1m2n3o4p5q6r7s8t9u0v1w2x3y4z5a6b7c8d9e0f1g2h3i4j5k6l7m8n9o0p1q2r3s4t5u6v7w8x9y0z";
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(apiKey);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleClose = () => {
+    setIsSaved(false);
+  };
+
+  return (
+    <Dialog id="create_api_key_modal" className="modal">
+      <div className="modal-box max-w-3xl bg-white">
+        <h3 className="text-2xl font-normal text-gray-900 mb-6">New API Key</h3>
+
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+          <div className="flex gap-3">
+            <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <h4 className="font-semibold text-gray-900 mb-1">
+                Keep your secret safe
+              </h4>
+              <p className="text-sm text-gray-700">
+                Save and store this new secret to a secure place, such as a
+                password manager or secret store. You won't be able to see it
+                again.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex gap-2 mb-6">
+          <input
+            type="text"
+            value={apiKey}
+            readOnly
+            className="input input-bordered flex-1 font-mono text-sm bg-gray-50"
+          />
+          <button
+            onClick={handleCopy}
+            className="btn bg-white border-cyan-400 text-cyan-400 hover:bg-cyan-50"
+          >
+            <Copy className="w-4 h-4 mr-2" />
+            {copied ? "Copied!" : "Copy secret"}
+          </button>
+        </div>
+
+        <label className="flex items-center gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={isSaved}
+            onChange={(e) => setIsSaved((e.target as HTMLInputElement).checked)}
+            className="checkbox checkbox-sm border-2 border-gray-300 [--chkbg:black] [--chkfg:white]"
+          />
+          <span
+            className={`text-sm ${isSaved ? "text-gray-900" : "text-gray-400"}`}
+          >
+            Yes, I saved this secret
+          </span>
+        </label>
+        <div className="modal-action">
+          <button
+            onClick={handleClose}
+            disabled={!isSaved}
+            className={`btn ${
+              isSaved
+                ? "bg-cyan-400 hover:bg-cyan-500 text-white"
+                : "bg-gray-200 text-gray-400 cursor-not-allowed"
+            } border-none`}
+          >
+            Done
+          </button>
+        </div>
+      </div>
+    </Dialog>
   );
 }
 
@@ -272,6 +485,8 @@ export function DeveloperPortal() {
             {tab === "webhooks" && <WebhooksSection />}
           </div>
         </main>
+        <AddWebhookModal />
+        <CreateApiKeyModal />
       </div>
     </div>
   );
