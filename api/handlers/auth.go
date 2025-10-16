@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"encoding/json"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -13,7 +12,7 @@ import (
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/jackc/pgx/v5"
 	"github.com/segmentio/ksuid"
-	"golang.org/x/crypto/argon2"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // registerUser handles user registration
@@ -37,7 +36,7 @@ func (api *API) Auth(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Validate phone number (E.164 format)
-	if matched, _ := regexp.MatchString(`^\+[1-9]\d{1,14}$`, req.Phone); !matched {
+	if matched, _ := regexp.MatchString(`^(\+221)?(77|78|75|71|70|76)[0-9]{7}$`, req.Phone); !matched {
 		slog.ErrorContext(r.Context(), "Invalid phone number format", "phone", req.Phone)
 		http.Error(w, "Invalid phone number format", http.StatusBadRequest)
 		return
@@ -54,25 +53,36 @@ func (api *API) Auth(w http.ResponseWriter, r *http.Request) {
 	user, err := api.db.GetUserByPhone(r.Context(), req.Phone)
 	if err != nil {
 		if err == pgx.ErrNoRows {
-			id := ksuid.New().String()
-			// Hash the PIN using Argon2id
-			salt := []byte(id) // In a real app, use a unique salt for each user
-			pinHash := argon2.IDKey([]byte(req.Pin), salt, 1, 64*1024, 4, 32)
+			pinHash, err := bcrypt.GenerateFromPassword([]byte(req.Pin), bcrypt.DefaultCost)
+			if err != nil {
+				slog.ErrorContext(r.Context(), "Failed to hash PIN", "error", err)
+				http.Error(w, "Failed to process PIN", http.StatusInternalServerError)
+				return
+			}
 
 			// Create user
 			user, err = api.db.CreateUser(r.Context(), sqlc.CreateUserParams{
-				ID:      id,
+				ID:      ksuid.New().String(),
 				Phone:   req.Phone,
-				PinHash: fmt.Sprintf("%x", pinHash),
+				PinHash: string(pinHash),
 			})
 			if err != nil {
 				slog.ErrorContext(r.Context(), "Failed to create user", "error", err)
 				http.Error(w, "Failed to create user", http.StatusInternalServerError)
 				return
 			}
+		} else {
+
+			slog.ErrorContext(r.Context(), "Failed to check user existence", "error", err)
+			http.Error(w, "Failed to check user existence", http.StatusInternalServerError)
+			return
 		}
-		slog.ErrorContext(r.Context(), "Failed to check user existence", "error", err)
-		http.Error(w, "Failed to check user existence", http.StatusInternalServerError)
+	}
+
+	// Verify PIN
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PinHash), []byte(req.Pin)); err != nil {
+		slog.ErrorContext(r.Context(), "Invalid PIN", "phone", req.Phone, "error", err)
+		http.Error(w, "Invalid phone or PIN", http.StatusUnauthorized)
 		return
 	}
 

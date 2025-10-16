@@ -17,6 +17,9 @@ migrate-down:
 sqlc-generate:
 	cd api && sqlc generate
 
+run:
+	cd api && go run main.go
+
 
 
 help:
@@ -26,3 +29,4 @@ help:
 	@echo "  migrate-up     - Apply all pending database migrations"
 	@echo "  migrate-down   - Roll back the last database migration"
 	@echo "  sqlc-generate  - Generate Go code from SQL queries"
+	@echo "  run            - Run the Go application"

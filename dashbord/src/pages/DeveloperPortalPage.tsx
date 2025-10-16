@@ -1,4 +1,4 @@
-import { Code2 } from "lucide-preact";
+import { AlertCircle, Code2, MoreVertical } from "lucide-preact";
 import wavePollLogo from "/wave_pool.svg";
 import { A, navigate, url } from "../lib/router";
 import { api } from "../lib/api";
@@ -13,9 +13,8 @@ const logoutHandler = async (e: Event) => {
     if (logout.data) {
       localStorage.removeItem("access_token");
       localStorage.removeItem("refresh_token");
-      localStorage.removeItem("expires_at");
+      localStorage.removeItem("expires_in");
       user.reset();
-      navigate({ params: { nav: "login" } });
     }
   }
 };
@@ -31,6 +30,134 @@ const TabButton = ({ name }: { name: string }) => (
     {name}
   </A>
 );
+
+function WebhooksSection() {
+  return (
+    <>
+      <div className="flex justify-end mb-6">
+        <button
+          // onClick={onAddClick}
+          className="btn btn-sm bg-cyan-400 hover:bg-cyan-500 text-white border-none normal-case"
+        >
+          Add new webhook
+        </button>
+      </div>
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+        <div className="overflow-x-auto">
+          <table className="table w-full">
+            <thead>
+              <tr className="border-b border-gray-200">
+                <th className="bg-white text-gray-700 font-semibold text-base">Webhook URL</th>
+                <th className="bg-white text-gray-700 font-semibold text-base">Status</th>
+                <th className="bg-white text-gray-700 font-semibold text-base">Security Strategy</th>
+                <th className="bg-white text-gray-700 font-semibold text-base">Event subscriptions</th>
+                <th className="bg-white text-gray-700 font-semibold text-base">Date created</th>
+                <th className="bg-white"></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr className="border-b border-gray-100 hover:bg-gray-50">
+                <td className="text-gray-900">https://asdf.qwer</td>
+                <td>
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="w-5 h-5 text-red-500" />
+                  </div>
+                </td>
+                <td className="text-gray-700">SHARED_SECRET</td>
+                <td className="text-gray-700">checkout.session.completed</td>
+                <td className="text-gray-700">9 July 2024 at 15:27</td>
+                <td className="text-right">
+                  <button className="btn btn-ghost btn-sm">
+                    <MoreVertical className="w-5 h-5 text-gray-500" />
+                  </button>
+                </td>
+              </tr>
+              <tr className="hover:bg-gray-50">
+                <td className="text-gray-900">https://qwer.asdf</td>
+                <td>
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="w-5 h-5 text-red-500" />
+                  </div>
+                </td>
+                <td className="text-gray-700">SHARED_SECRET</td>
+                <td className="text-gray-700">b2b.payment_received</td>
+                <td className="text-gray-700">9 July 2024 at 15:27</td>
+                <td className="text-right">
+                  <button className="btn btn-ghost btn-sm">
+                    <MoreVertical className="w-5 h-5 text-gray-500" />
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </>
+  )
+}
+
+function ApiKeysSection() {
+  return (
+    <>
+      <div className="flex justify-end mb-6">
+        <button
+          className="btn btn-sm bg-cyan-400 hover:bg-cyan-500 text-white border-none normal-case"
+        >
+          Create API Key
+        </button>
+      </div>
+
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+        <div className="overflow-x-auto">
+          <table className="table w-full">
+            <thead>
+              <tr className="border-b border-gray-200">
+                <th className="bg-white text-gray-700 font-semibold text-base">key</th>
+                <th className="bg-white text-gray-700 font-semibold text-base">APIs</th>
+                <th className="bg-white text-gray-700 font-semibold text-base text-right">Manage</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr className="border-b border-gray-100 hover:bg-gray-50">
+                <td className="text-gray-900">
+                  <span className="font-mono">wave_sn_prod_....●●●●</span>
+                </td>
+                <td className="text-gray-700">Balance API</td>
+                <td className="text-right">
+                  <button className="btn btn-sm btn-outline border-cyan-400 text-cyan-400 hover:bg-cyan-50 hover:border-cyan-500 normal-case">
+                    Revoke
+                  </button>
+                </td>
+              </tr>
+              <tr className="border-b border-gray-100 hover:bg-gray-50">
+                <td className="text-gray-900">
+                  <span className="font-mono">wave_sn_prod_....●●●●</span>
+                </td>
+                <td className="text-gray-700">Balance API, Checkout API</td>
+                <td className="text-right">
+                  <button className="btn btn-sm btn-outline border-cyan-400 text-cyan-400 hover:bg-cyan-50 hover:border-cyan-500 normal-case">
+                    Revoke
+                  </button>
+                </td>
+              </tr>
+              <tr className="hover:bg-gray-50">
+                <td className="text-gray-900">
+                  <span className="font-mono">wave_sn_test_....●●●●</span>
+                </td>
+                <td className="text-gray-700">Balance API, Checkout API</td>
+                <td className="text-right">
+                  <button className="btn btn-sm btn-outline border-cyan-400 text-cyan-400 hover:bg-cyan-50 hover:border-cyan-500 normal-case">
+                    Revoke
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </>
+  )
+}
 
 export function DeveloperPortal() {
   const { nav, tab } = url.params;
@@ -98,73 +225,8 @@ export function DeveloperPortal() {
               <TabButton name="WEBHOOKS" />
             </div>
 
-            <div className="flex justify-end mb-6">
-              <A
-                params={{ action: "create-api-key" }}
-                className="btn btn-sm bg-cyan-400 hover:bg-cyan-500 text-white border-none normal-case"
-              >
-                Create API Key
-              </A>
-            </div>
-
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-              <div className="overflow-x-auto">
-                <table className="table w-full">
-                  <thead>
-                    <tr className="border-b border-gray-200">
-                      <th className="bg-white text-gray-700 font-semibold text-base">
-                        key
-                      </th>
-                      <th className="bg-white text-gray-700 font-semibold text-base">
-                        APIs
-                      </th>
-                      <th className="bg-white text-gray-700 font-semibold text-base text-right">
-                        Manage
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr className="border-b border-gray-100 hover:bg-gray-50">
-                      <td className="text-gray-900">
-                        <span className="font-mono">wave_sn_prod_....●●●●</span>
-                      </td>
-                      <td className="text-gray-700">Balance API</td>
-                      <td className="text-right">
-                        <button className="btn btn-sm btn-outline border-cyan-400 text-cyan-400 hover:bg-cyan-50 hover:border-cyan-500 normal-case">
-                          Revoke
-                        </button>
-                      </td>
-                    </tr>
-                    <tr className="border-b border-gray-100 hover:bg-gray-50">
-                      <td className="text-gray-900">
-                        <span className="font-mono">wave_sn_prod_....●●●●</span>
-                      </td>
-                      <td className="text-gray-700">
-                        Balance API, Checkout API
-                      </td>
-                      <td className="text-right">
-                        <button className="btn btn-sm btn-outline border-cyan-400 text-cyan-400 hover:bg-cyan-50 hover:border-cyan-500 normal-case">
-                          Revoke
-                        </button>
-                      </td>
-                    </tr>
-                    <tr className="hover:bg-gray-50">
-                      <td className="text-gray-900">
-                        <span className="font-mono">wave_sn_test_....●●●●</span>
-                      </td>
-                      <td className="text-gray-700">
-                        Balance API, Checkout API
-                      </td>
-                      <td className="text-right">
-                        <button className="btn btn-sm btn-outline border-cyan-400 text-cyan-400 hover:bg-cyan-50 hover:border-cyan-500 normal-case">
-                          Revoke
-                        </button>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            {tab === "api-keys" && <ApiKeysSection />}
+            {tab === "webhooks" && <WebhooksSection />}
           </div>
         </main>
       </div>
