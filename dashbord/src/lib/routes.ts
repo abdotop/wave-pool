@@ -65,26 +65,29 @@ export const defs = {
     input: OBJ({
       env: STR("environment for the API key, e.g., 'production', 'staging'"),
       scopes: ARR(STR("scopes for the API key"), "array of scopes"),
-    },"request body"),
+    }, "request body"),
     output: OBJ({
       id: STR("API key ID"),
       secret_key: STR("API key secret (only shown once)"),
       prefix: STR("API key prefix"),
       scopes: ARR(STR("scopes for the API key"), "array of scopes"),
-      env : STR("environment for the API key"),
+      env: STR("environment for the API key"),
     }, "response body"),
     description: "Create a new API key",
   }),
   "GET/api/v1/api-keys": route({
-    output: ARR(OBJ({
-      id: STR("API key ID"),
-      business_id: STR("associated business ID"),
-      prefix: STR("API key prefix"),
-      scopes: ARR(STR("scopes for the API key"), "array of scopes"),
-      env : STR("environment for the API key"),
-      status: STR("API key status: active or revoked"),
-      created_at: STR("API key creation timestamp"),
-    }, "API key object"), "array of API keys"),
+    output: ARR(
+      OBJ({
+        id: STR("API key ID"),
+        business_id: STR("associated business ID"),
+        prefix: STR("API key prefix"),
+        scopes: ARR(STR("scopes for the API key"), "array of scopes"),
+        env: STR("environment for the API key"),
+        status: STR("API key status: active or revoked"),
+        created_at: STR("API key creation timestamp"),
+      }, "API key object"),
+      "array of API keys",
+    ),
     description: "List all API keys for the authenticated user's business",
   }),
   "DELETE/api/v1/api-keys/{key_id}": route({

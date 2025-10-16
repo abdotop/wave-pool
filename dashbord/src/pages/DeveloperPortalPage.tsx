@@ -41,7 +41,7 @@ const revokeApiKey = async (keyId: string) => {
       }
     }
   }
-}
+};
 
 const TabButton = ({ name }: { name: string }) => (
   <A
@@ -60,10 +60,8 @@ function WebhooksSection() {
   return (
     <>
       <div className="flex justify-end mb-6">
-        <button
-          // onClick={onAddClick}
-          className="btn btn-sm bg-cyan-400 hover:bg-cyan-500 text-white border-none normal-case"
-        >
+        <button // onClick={onAddClick}
+         className="btn btn-sm bg-cyan-400 hover:bg-cyan-500 text-white border-none normal-case">
           Add new webhook
         </button>
       </div>
@@ -72,11 +70,21 @@ function WebhooksSection() {
           <table className="table w-full">
             <thead>
               <tr className="border-b border-gray-200">
-                <th className="bg-white text-gray-700 font-semibold text-base">Webhook URL</th>
-                <th className="bg-white text-gray-700 font-semibold text-base">Status</th>
-                <th className="bg-white text-gray-700 font-semibold text-base">Security Strategy</th>
-                <th className="bg-white text-gray-700 font-semibold text-base">Event subscriptions</th>
-                <th className="bg-white text-gray-700 font-semibold text-base">Date created</th>
+                <th className="bg-white text-gray-700 font-semibold text-base">
+                  Webhook URL
+                </th>
+                <th className="bg-white text-gray-700 font-semibold text-base">
+                  Status
+                </th>
+                <th className="bg-white text-gray-700 font-semibold text-base">
+                  Security Strategy
+                </th>
+                <th className="bg-white text-gray-700 font-semibold text-base">
+                  Event subscriptions
+                </th>
+                <th className="bg-white text-gray-700 font-semibold text-base">
+                  Date created
+                </th>
                 <th className="bg-white"></th>
               </tr>
             </thead>
@@ -118,16 +126,14 @@ function WebhooksSection() {
         </div>
       </div>
     </>
-  )
+  );
 }
 
 function ApiKeysSection() {
   return (
     <>
       <div className="flex justify-end mb-6">
-        <button
-          className="btn btn-sm bg-cyan-400 hover:bg-cyan-500 text-white border-none normal-case"
-        >
+        <button className="btn btn-sm bg-cyan-400 hover:bg-cyan-500 text-white border-none normal-case">
           Create API Key
         </button>
       </div>
@@ -137,9 +143,15 @@ function ApiKeysSection() {
           <table className="table w-full">
             <thead>
               <tr className="border-b border-gray-200">
-                <th className="bg-white text-gray-700 font-semibold text-base">key</th>
-                <th className="bg-white text-gray-700 font-semibold text-base">APIs</th>
-                <th className="bg-white text-gray-700 font-semibold text-base text-right">Manage</th>
+                <th className="bg-white text-gray-700 font-semibold text-base">
+                  key
+                </th>
+                <th className="bg-white text-gray-700 font-semibold text-base">
+                  APIs
+                </th>
+                <th className="bg-white text-gray-700 font-semibold text-base text-right">
+                  Manage
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -181,7 +193,7 @@ function ApiKeysSection() {
         </div>
       </div>
     </>
-  )
+  );
 }
 
 export function DeveloperPortal() {
@@ -227,12 +239,18 @@ export function DeveloperPortal() {
               className="flex items-center gap-3 cursor-pointer hover:bg-gray-100 px-3 py-1 rounded-lg transition-colors"
             >
               <div className="text-right">
-                <div className="font-semibold text-gray-900">{user.data?.business.name}</div>
-                <div className="text-sm text-gray-500">{user.data?.business.country} {user.data?.business.name}</div>
+                <div className="font-semibold text-gray-900">
+                  {user.data?.business.name}
+                </div>
+                <div className="text-sm text-gray-500">
+                  {user.data?.business.country} {user.data?.business.name}
+                </div>
               </div>
               <div className="avatar placeholder">
                 <div className="bg-cyan-400 text-white rounded-full w-10 h-10 flex items-center justify-center">
-                  <span className="text-lg font-semibold">{user.data?.business.name[0]}</span>
+                  <span className="text-lg font-semibold">
+                    {user.data?.business.name[0]}
+                  </span>
                 </div>
               </div>
             </div>

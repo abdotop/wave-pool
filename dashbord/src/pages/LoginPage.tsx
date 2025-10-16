@@ -20,7 +20,7 @@ const handleSubmit = async (e: Event) => {
   });
   if (register.data) {
     if (typeof register.data === "string") {
-      register.error =  Error(register.data);
+      register.error = Error(register.data);
       form.reset();
       return;
     }
@@ -68,7 +68,11 @@ export function LoginPage() {
               defaultValue="+221"
             >
               <option value="+221">
-                <img src={senegalFlag} alt="Senegal Flag" className="inline w-5 h-3 mr-2" />
+                <img
+                  src={senegalFlag}
+                  alt="Senegal Flag"
+                  className="inline w-5 h-3 mr-2"
+                />
                 +221
               </option>
             </select>
