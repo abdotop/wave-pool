@@ -12,12 +12,17 @@ type Querier interface {
 	CreateAPIKey(ctx context.Context, arg CreateAPIKeyParams) (ApiKey, error)
 	CreateBusiness(ctx context.Context, arg CreateBusinessParams) (Business, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
+	CreateWebhook(ctx context.Context, arg CreateWebhookParams) (Webhook, error)
+	DeleteWebhook(ctx context.Context, id string) error
 	GetAPIKeyByID(ctx context.Context, id string) (ApiKey, error)
 	GetBusinessByOwnerID(ctx context.Context, ownerID string) (Business, error)
 	GetUserByID(ctx context.Context, id string) (User, error)
 	GetUserByPhone(ctx context.Context, phone string) (User, error)
+	GetWebhookByID(ctx context.Context, arg GetWebhookByIDParams) (Webhook, error)
 	ListAPIKeys(ctx context.Context, businessID string) ([]ListAPIKeysRow, error)
+	ListWebhooksByBusinessID(ctx context.Context, businessID string) ([]Webhook, error)
 	RevokeAPIKey(ctx context.Context, arg RevokeAPIKeyParams) error
+	UpdateWebhook(ctx context.Context, arg UpdateWebhookParams) (Webhook, error)
 }
 
 var _ Querier = (*Queries)(nil)

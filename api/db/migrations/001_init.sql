@@ -32,11 +32,12 @@ CREATE TABLE "webhooks" (
     "id" char(27) PRIMARY KEY,
     "business_id" char(27) NOT NULL REFERENCES business(id),
     "url" text NOT NULL,
-    "strategy" varchar(32) NOT NULL,
+    "signing_strategy" varchar(18) NOT NULL,
     "secret" varchar(128) NOT NULL,
     "events" text[] NOT NULL,
-    "status" varchar(16) DEFAULT 'active',
-    "created_at" timestamptz DEFAULT now()
+    "status" varchar(16) NOT NULL DEFAULT 'active',
+    "created_at" timestamptz DEFAULT now(),
+    "updated_at" timestamptz DEFAULT now()
 );
 
 CREATE TABLE "checkout_sessions" (

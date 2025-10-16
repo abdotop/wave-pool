@@ -96,6 +96,11 @@ func main() {
 	router.Handle("POST /api/v1/api-keys", api.AuthMiddleware(http.HandlerFunc(api.CreateAPIKey)))
 	router.Handle("GET /api/v1/api-keys", api.AuthMiddleware(http.HandlerFunc(api.ListAPIKeys)))
 	router.Handle("DELETE /api/v1/api-keys/{key_id}", api.AuthMiddleware(http.HandlerFunc(api.DeleteAPIKey)))
+	// Webhooks
+	router.Handle("POST /api/v1/webhooks", api.AuthMiddleware(http.HandlerFunc(api.CreateWebhook)))
+	router.Handle("GET /api/v1/webhooks", api.AuthMiddleware(http.HandlerFunc(api.ListWebhooks)))
+	router.Handle("PUT /api/v1/webhooks/{webhook_id}", api.AuthMiddleware(http.HandlerFunc(api.UpdateWebhook)))
+	router.Handle("DELETE /api/v1/webhooks/{webhook_id}", api.AuthMiddleware(http.HandlerFunc(api.DeleteWebhook)))
 
 	server := &http.Server{
 		Addr:         ":" + cmp.Or(os.Getenv("PORT"), "8080"),
