@@ -18,7 +18,7 @@ function setTokens(
   localStorage.setItem("expires_in", expires_at.toString());
 }
 
-async function ensureValidToken() {
+export async function ensureValidToken() {
   const token = localStorage.getItem("access_token");
   const refreshToken = localStorage.getItem("refresh_token");
   const expiresIn = localStorage.getItem("expires_in");

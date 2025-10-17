@@ -2,27 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 
 class PhoneNumberInput extends HookWidget {
-  const PhoneNumberInput({super.key});
+  final Function(String) onNext;
+  const PhoneNumberInput({super.key, required this.onNext});
 
   @override
   Widget build(BuildContext context) {
     final phoneController = useTextEditingController();
-    final pinController = useTextEditingController();
-
     final phone = useState('');
-    final pin = useState('');
 
     useEffect(() {
-      void l() => phone.value = phoneController.text;
-      phoneController.addListener(l);
-      return () => phoneController.removeListener(l);
+      void listener() => phone.value = phoneController.text;
+      phoneController.addListener(listener);
+      return () => phoneController.removeListener(listener);
     }, [phoneController]);
-
-    useEffect(() {
-      void l() => pin.value = pinController.text;
-      pinController.addListener(l);
-      return () => pinController.removeListener(l);
-    }, [pinController]);
 
     final isValid = useMemoized(
       () => RegExp(r'^(77|78|75|71|70|76)[0-9]{7}$').hasMatch(phone.value),
@@ -65,10 +57,7 @@ class PhoneNumberInput extends HookWidget {
                           fit: BoxFit.cover,
                         ),
                         const SizedBox(width: 8),
-                        const Text(
-                          '+221',
-                          style: TextStyle(fontSize: 18),
-                        ),
+                        const Text('+221', style: TextStyle(fontSize: 18)),
                         const SizedBox(width: 6),
                         Container(
                           width: 1,
@@ -127,17 +116,16 @@ class PhoneNumberInput extends HookWidget {
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     elevation: 0,
-                    backgroundColor:
-                        isValid ? const Color(0xFFB3E5FC) : Colors.grey[200],
+                    backgroundColor: isValid
+                        ? const Color(0xFFB3E5FC)
+                        : Colors.grey[200],
                     foregroundColor: Colors.black,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(50),
                     ),
                   ),
-                  onPressed: isValid
-                      ? () => _onNext(context, phone.value, pin.value)
-                      : null,
+                  onPressed: isValid ? () => onNext(phone.value) : null,
                   child: const Text(
                     'Next',
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
@@ -149,12 +137,6 @@ class PhoneNumberInput extends HookWidget {
           ),
         ),
       ),
-    );
-  }
-
-  void _onNext(BuildContext context, String phone, String pin) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Phone: +221$phone\nPIN: $pin')),
     );
   }
 }

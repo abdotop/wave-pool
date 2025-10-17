@@ -9,20 +9,30 @@ import {
 import wavePollLogo from "/wave_pool.svg";
 import { A, navigate, url } from "../lib/router";
 import { api } from "../lib/api";
-import { user } from "../lib/session";
+import { ensureValidToken, user } from "../lib/session";
 import { useState } from "preact/hooks";
 import { Dialog } from "../components/Dialog";
 import { Signal } from "@preact/signals";
 
-const options = () => ({
-  headers: { Authorization: `Bearer ${localStorage.getItem("access_token")}` },
-});
+const options = async () => {
+  const token = await ensureValidToken();
+  if (!token) {
+    return {};
+  }
+  return {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  };
+};
 const logout = api["DELETE/api/v1/auth/logout"].signal();
 const apiKeys = api["GET/api/v1/api-keys"].signal();
 const webhooks = api["GET/api/v1/webhooks"].signal();
 const createWebhook = api["POST/api/v1/webhooks"].signal();
-apiKeys.fetch(undefined, options());
-webhooks.fetch(undefined, options());
+const createApiKey = api["POST/api/v1/api-keys"].signal();
+const deleteApiKey = api["DELETE/api/v1/api-keys/{key_id}"].signal();
+apiKeys.fetch(undefined, await options());
+webhooks.fetch(undefined, await options());
 
 const secretData = new Signal<
   {
@@ -51,12 +61,11 @@ const revokeApiKey = async (keyId: string) => {
   if (keyId) {
     const token = localStorage.getItem("access_token");
     if (token) {
-      const deleteApiKey = api["DELETE/api/v1/api-keys/{key_id}"].signal();
-      await deleteApiKey.fetch({ key_id: keyId }, options());
+      await deleteApiKey.fetch({ key_id: keyId }, await options());
 
       if (deleteApiKey.data !== undefined) {
         // Refresh the API keys list
-        apiKeys.fetch(undefined, options());
+        apiKeys.fetch(undefined, await options());
       }
     }
   }
@@ -207,6 +216,93 @@ function ApiKeysSection() {
   );
 }
 
+export function SelectApisModal() {
+  const handleSubmit = async (e: Event) => {
+    e.preventDefault();
+    createApiKey.fetch({ env: "prod", scopes: ["checkout"] }, await options())
+      .then(async () => {
+        if (createApiKey.data) {
+          apiKeys.fetch(undefined, await options());
+          secretData.value = {
+            title: "API Key created",
+            description:
+              "Keep your API key safe. You won't be able to see it again.",
+            apiKey: createApiKey.data.secret_key,
+          };
+          createApiKey.reset();
+          navigate({ params: { dialog: "secret_modal" } });
+        } else if (createApiKey.error) {
+          alert(`Error: ${createApiKey.error.message}`);
+        }
+      });
+  };
+
+  return (
+    <Dialog id="create-api-key" class="modal">
+      <div className="modal-box max-w-md bg-white">
+        <h3 className="font-semibold text-2xl mb-6 text-gray-900">
+          New API Key
+        </h3>
+
+        <p className="text-gray-700 mb-6">
+          Select the APIs that this API key will have access to:
+        </p>
+
+        <form
+          id="create-api-key-form"
+          onSubmit={handleSubmit}
+          className="space-y-4 mb-8"
+        >
+          <label className="flex items-center gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              disabled
+              className="checkbox checkbox-md border-2 border-gray-300 checked:border-cyan-400 [--chkbg:theme(colors.cyan.400)] [--chkfg:white]"
+            />
+            <span className="text-gray-900 text-base">Balance API</span>
+          </label>
+
+          <label className="flex items-center gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={true}
+              className="checkbox checkbox-md border-2 border-gray-300 checked:border-cyan-400 [--chkbg:theme(colors.cyan.400)] [--chkfg:white]"
+            />
+            <span className="text-gray-900 text-base">Checkout API</span>
+          </label>
+
+          <label className="flex items-center gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              disabled
+              className="checkbox checkbox-md border-2 border-gray-300 checked:border-cyan-400 [--chkbg:theme(colors.cyan.400)] [--chkfg:white]"
+            />
+            <span className="text-gray-900 text-base">Payout API</span>
+          </label>
+        </form>
+
+        <div className="flex justify-end gap-3">
+          <form method="dialog">
+            <button
+              type="submit"
+              className="btn btn-ghost text-cyan-400 hover:bg-cyan-50 normal-case"
+            >
+              Cancel
+            </button>
+          </form>
+          <button
+            type="submit"
+            form="create-api-key-form"
+            className="btn bg-cyan-400 hover:bg-cyan-500 text-white border-none normal-case disabled:bg-gray-300 disabled:text-gray-500"
+          >
+            Create
+          </button>
+        </div>
+      </div>
+    </Dialog>
+  );
+}
+
 function AddWebhookModal() {
   const [webhookUrl, setWebhookUrl] = useState("");
   const [securityStrategy, setSecurityStrategy] = useState("SIGNING_SECRET");
@@ -225,7 +321,7 @@ function AddWebhookModal() {
     }));
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const selectedEvents = Object.keys(eventSubscriptions).filter(
       (event) => eventSubscriptions[event as keyof typeof eventSubscriptions],
     );
@@ -244,10 +340,10 @@ function AddWebhookModal() {
       url: webhookUrl,
       signing_strategy: securityStrategy,
       events: selectedEvents,
-    }, options()).then(() => {
+    }, await options()).then(async () => {
       if (createWebhook.data) {
         // Refresh the webhooks list
-        webhooks.fetch(undefined, options());
+        await webhooks.fetch(undefined, await options());
         // Reset form fields
         setWebhookUrl("");
         setSecurityStrategy("SIGNING_SECRET");
@@ -534,6 +630,7 @@ export function DeveloperPortal() {
         </main>
         <AddWebhookModal />
         <SecretModal />
+        <SelectApisModal />
       </div>
     </div>
   );
