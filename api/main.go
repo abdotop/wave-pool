@@ -102,6 +102,12 @@ func main() {
 	router.Handle("PUT /api/v1/webhooks/{webhook_id}", api.AuthMiddleware(http.HandlerFunc(api.UpdateWebhook)))
 	router.Handle("DELETE /api/v1/webhooks/{webhook_id}", api.AuthMiddleware(http.HandlerFunc(api.DeleteWebhook)))
 
+	// Checkout
+	router.Handle("POST /v1/checkout/sessions", api.APIKeyAuthMiddleware("checkout")(http.HandlerFunc(api.CreateCheckoutSession)))
+	router.Handle("GET /v1/checkout/sessions/{session_id}", api.APIKeyAuthMiddleware("checkout")(http.HandlerFunc(api.GetCheckoutSession)))
+	router.Handle("GET /v1/checkout/sessions", api.APIKeyAuthMiddleware("checkout")(http.HandlerFunc(api.GetCheckoutSessionByTxID)))
+	router.Handle("GET /v1/checkout/sessions/search", api.APIKeyAuthMiddleware("checkout")(http.HandlerFunc(api.SearchCheckoutSessions)))
+	router.Handle("POST /v1/checkout/sessions/{session_id}/refund", api.APIKeyAuthMiddleware("checkout")(http.HandlerFunc(api.RefundCheckoutSession)))
 	server := &http.Server{
 		Addr:         ":" + cmp.Or(os.Getenv("PORT"), "8080"),
 		Handler:      router,

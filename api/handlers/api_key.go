@@ -4,7 +4,9 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"log"
 	"net/http"
+	"os"
 
 	"github.com/abdotop/wave-pool/db/sqlc"
 	"github.com/segmentio/ksuid"
@@ -50,8 +52,7 @@ func (api *API) CreateAPIKey(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Generate a new API key
-	keyID := ksuid.New().String()
-	secretBytes := make([]byte, 32)
+	secretBytes := make([]byte, 86)
 	if _, err := rand.Read(secretBytes); err != nil {
 		http.Error(w, "Failed to generate secret key", http.StatusInternalServerError)
 		return
@@ -59,11 +60,12 @@ func (api *API) CreateAPIKey(w http.ResponseWriter, r *http.Request) {
 	secretKey := base64.RawURLEncoding.EncodeToString(secretBytes)
 
 	// Hash the secret key
-	salt := []byte(keyID)
+	salt := []byte(os.Getenv("API_SECRET"))
 	hashedSecret := argon2.IDKey([]byte(secretKey), salt, 1, 64*1024, 4, 32)
 	hashedSecretStr := base64.RawURLEncoding.EncodeToString(hashedSecret)
-
-	prefix := "wave-pool_" + req.Env[:3] + "_"
+	log.Println("Hashed Secret for Creation:", hashedSecretStr)
+	keyID := ksuid.New().String()
+	prefix := "wave-pool_prod_"
 
 	params := sqlc.CreateAPIKeyParams{
 		ID:         keyID,

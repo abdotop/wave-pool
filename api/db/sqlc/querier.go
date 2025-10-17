@@ -11,17 +11,24 @@ import (
 type Querier interface {
 	CreateAPIKey(ctx context.Context, arg CreateAPIKeyParams) (ApiKey, error)
 	CreateBusiness(ctx context.Context, arg CreateBusinessParams) (Business, error)
+	CreateCheckoutSession(ctx context.Context, arg CreateCheckoutSessionParams) (CheckoutSession, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	CreateWebhook(ctx context.Context, arg CreateWebhookParams) (Webhook, error)
 	DeleteWebhook(ctx context.Context, id string) error
+	ExpireCheckoutSession(ctx context.Context, arg ExpireCheckoutSessionParams) error
 	GetAPIKeyByID(ctx context.Context, id string) (ApiKey, error)
+	GetAPIKeyByPrefixAndSecret(ctx context.Context, arg GetAPIKeyByPrefixAndSecretParams) (GetAPIKeyByPrefixAndSecretRow, error)
 	GetBusinessByOwnerID(ctx context.Context, ownerID string) (Business, error)
+	GetCheckoutSession(ctx context.Context, arg GetCheckoutSessionParams) (CheckoutSession, error)
+	GetCheckoutSessionByTxID(ctx context.Context, arg GetCheckoutSessionByTxIDParams) (CheckoutSession, error)
 	GetUserByID(ctx context.Context, id string) (User, error)
 	GetUserByPhone(ctx context.Context, phone string) (User, error)
 	GetWebhookByID(ctx context.Context, arg GetWebhookByIDParams) (Webhook, error)
 	ListAPIKeys(ctx context.Context, businessID string) ([]ListAPIKeysRow, error)
 	ListWebhooksByBusinessID(ctx context.Context, businessID string) ([]Webhook, error)
 	RevokeAPIKey(ctx context.Context, arg RevokeAPIKeyParams) error
+	SearchCheckoutSessions(ctx context.Context, arg SearchCheckoutSessionsParams) ([]CheckoutSession, error)
+	UpdateCheckoutPaymentStatus(ctx context.Context, arg UpdateCheckoutPaymentStatusParams) error
 	UpdateWebhook(ctx context.Context, arg UpdateWebhookParams) (Webhook, error)
 }
 

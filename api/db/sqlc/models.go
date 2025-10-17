@@ -47,22 +47,23 @@ type Business struct {
 }
 
 type CheckoutSession struct {
-	ID                  string             `json:"id"`
-	BusinessID          string             `json:"business_id"`
-	Amount              string             `json:"amount"`
-	Currency            string             `json:"currency"`
-	ClientReference     pgtype.Text        `json:"client_reference"`
-	Status              string             `json:"status"`
-	ErrorUrl            string             `json:"error_url"`
-	SuccessUrl          string             `json:"success_url"`
-	RestrictPayerMobile pgtype.Text        `json:"restrict_payer_mobile"`
-	WaveLaunchUrl       pgtype.Text        `json:"wave_launch_url"`
-	TransactionID       pgtype.Text        `json:"transaction_id"`
-	PaymentStatus       pgtype.Text        `json:"payment_status"`
-	LastPaymentError    []byte             `json:"last_payment_error"`
-	ExpiresAt           pgtype.Timestamptz `json:"expires_at"`
-	WhenCompleted       pgtype.Timestamptz `json:"when_completed"`
-	WhenCreated         pgtype.Timestamptz `json:"when_created"`
+	ID                   string             `json:"id"`
+	BusinessID           string             `json:"business_id"`
+	Amount               string             `json:"amount"`
+	Currency             string             `json:"currency"`
+	ClientReference      pgtype.Text        `json:"client_reference"`
+	AggregatedMerchantID pgtype.Text        `json:"aggregated_merchant_id"`
+	Status               string             `json:"status"`
+	ErrorUrl             string             `json:"error_url"`
+	SuccessUrl           string             `json:"success_url"`
+	RestrictPayerMobile  pgtype.Text        `json:"restrict_payer_mobile"`
+	WaveLaunchUrl        pgtype.Text        `json:"wave_launch_url"`
+	TransactionID        pgtype.Text        `json:"transaction_id"`
+	PaymentStatus        pgtype.Text        `json:"payment_status"`
+	LastPaymentError     []byte             `json:"last_payment_error"`
+	ExpiresAt            pgtype.Timestamptz `json:"expires_at"`
+	WhenCompleted        pgtype.Timestamptz `json:"when_completed"`
+	WhenCreated          pgtype.Timestamptz `json:"when_created"`
 }
 
 type Payment struct {
