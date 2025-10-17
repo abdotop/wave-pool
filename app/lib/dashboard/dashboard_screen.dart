@@ -1,26 +1,45 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:wave_pool/auth/auth_service.dart';
+import 'package:wave_pool/core/secure_storage_service.dart';
 import 'package:wave_pool/dashboard/models/payment_model.dart';
-import 'package.wave_pool/dashboard/services/payment_service.dart';
+import 'package:wave_pool/dashboard/services/payment_service.dart';
+import 'package:go_router/go_router.dart';
+import 'package:http/http.dart' as http;
 
 class DashboardScreen extends HookWidget {
-  const DashboardScreen({super.key});
+  final AuthService? authService;
+  const DashboardScreen({super.key, this.authService});
 
   @override
   Widget build(BuildContext context) {
-    // QR Scanner state
     final scannedValue = useState<String?>(null);
-    final isScanning = useState<bool>(true);
-
-    // Payments state
+    final open = useState<bool>(false);
     final paymentService = useMemoized(() => PaymentService());
     final paymentsFuture = useMemoized(() => paymentService.getPayments(), []);
     final paymentsSnapshot = useFuture(paymentsFuture);
-
+    final authService = useMemoized(() {
+      if (this.authService != null) {
+        return this.authService!;
+      }
+      final secureStorage = SecureStorageService();
+      final authSvc = AuthService(secureStorage, http.Client());
+      return authSvc;
+    }, [this.authService]);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Dashboard'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: () {
+              authService.logout();
+              if (context.mounted) {
+                context.go('/auth');
+              }
+            },
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         child: Padding(
@@ -28,70 +47,52 @@ class DashboardScreen extends HookWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // --- QR Scanner Section ---
-              if (isScanning.value)
+              if (open.value)
                 Container(
                   margin: const EdgeInsets.symmetric(horizontal: 20),
                   decoration: BoxDecoration(
-                    border: Border.all(color: Colors.blueAccent, width: 3),
                     borderRadius: BorderRadius.circular(16),
                   ),
-                  height: 300,
+                  height: 170,
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(16),
                     child: MobileScanner(
                       onDetect: (capture) {
                         final List<Barcode> barcodes = capture.barcodes;
                         if (barcodes.isNotEmpty) {
-                          isScanning.value = false;
-                          scannedValue.value = barcodes.first.rawValue ?? "QR invalide";
+                          open.value = false;
+                          scannedValue.value =
+                              barcodes.first.rawValue ?? "QR invalide";
                         }
                       },
                     ),
                   ),
                 )
               else
-                Container(
-                  height: 300,
-                  alignment: Alignment.center,
-                  margin: const EdgeInsets.symmetric(horizontal: 20),
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.grey.shade300, width: 2),
-                    borderRadius: BorderRadius.circular(16),
-                    color: Colors.grey.shade100,
-                  ),
-                  child: const Icon(
-                    Icons.qr_code_2,
-                    size: 100,
-                    color: Colors.grey,
-                  ),
-                ),
-              const SizedBox(height: 20),
-              Text(
-                scannedValue.value == null
-                    ? "Aucun code scanné"
-                    : "✅ Code détecté : ${scannedValue.value}",
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-              ),
-              const SizedBox(height: 10),
-              if (!isScanning.value)
-                ElevatedButton.icon(
-                  onPressed: () {
+                GestureDetector(
+                  onTap: () {
                     scannedValue.value = null;
-                    isScanning.value = true;
+                    open.value = true;
                   },
-                  icon: const Icon(Icons.refresh),
-                  label: const Text("Scanner à nouveau"),
+                  child: Container(
+                    height: 170,
+                    alignment: Alignment.center,
+                    margin: const EdgeInsets.symmetric(horizontal: 20),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      color: Colors.lightBlueAccent.shade100,
+                    ),
+                    child: Image.asset(
+                      'assets/icon/qr_card.png',
+                      fit: BoxFit.cover,
+                    ),
+                  ),
                 ),
-
-              // --- Divider ---
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 20.0),
                 child: Divider(thickness: 2),
               ),
 
-              // --- Transactions Section ---
               const Text(
                 'Transactions Récentes',
                 style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
@@ -101,7 +102,8 @@ class DashboardScreen extends HookWidget {
                 const Center(child: CircularProgressIndicator())
               else if (paymentsSnapshot.hasError)
                 Center(child: Text('Error: ${paymentsSnapshot.error}'))
-              else if (!paymentsSnapshot.hasData || paymentsSnapshot.data!.isEmpty)
+              else if (!paymentsSnapshot.hasData ||
+                  paymentsSnapshot.data!.isEmpty)
                 const Center(child: Text('Aucune transaction trouvée.'))
               else
                 ListView.builder(
@@ -115,13 +117,13 @@ class DashboardScreen extends HookWidget {
                         payment.status == PaymentStatus.completed
                             ? Icons.check_circle
                             : payment.status == PaymentStatus.pending
-                                ? Icons.hourglass_empty
-                                : Icons.cancel,
+                            ? Icons.hourglass_empty
+                            : Icons.cancel,
                         color: payment.status == PaymentStatus.completed
                             ? Colors.green
                             : payment.status == PaymentStatus.pending
-                                ? Colors.orange
-                                : Colors.red,
+                            ? Colors.orange
+                            : Colors.red,
                       ),
                       title: Text(payment.merchant),
                       subtitle: Text('${payment.amount} ${payment.currency}'),

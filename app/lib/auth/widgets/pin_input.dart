@@ -64,22 +64,23 @@ class PinInputScreen extends HookWidget {
                   shape: BoxShape.circle,
                   color: Colors.blue.shade50,
                 ),
-                child: const Icon(Icons.lock_outline,
-                    color: Colors.blueAccent, size: 42),
+                child: const Icon(
+                  Icons.lock_outline,
+                  color: Colors.blueAccent,
+                  size: 42,
+                ),
               ),
               const SizedBox(height: 20),
               const Text(
                 'Enter your secret code for account',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.black87,
-                ),
+                style: TextStyle(fontSize: 16, color: Colors.black87),
               ),
               const SizedBox(height: 4),
               Text(
                 phone.replaceAllMapped(
-                    RegExp(r"(\d{2})(\d{3})(\d{2})(\d{2})"),
-                    (m) => "${m[1]} ${m[2]} ${m[3]} ${m[4]}"),
+                  RegExp(r"(\d{2})(\d{3})(\d{2})(\d{2})"),
+                  (m) => "${m[1]} ${m[2]} ${m[3]} ${m[4]}",
+                ),
                 style: const TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w500,
@@ -104,17 +105,15 @@ class PinInputScreen extends HookWidget {
                 }),
               ),
               const Spacer(),
-              Numpad(
-                onDigit: addDigit,
-                onBackspace: removeDigit,
-              ),
+              Numpad(onDigit: addDigit, onBackspace: removeDigit),
               const SizedBox(height: 12),
               Align(
                 alignment: Alignment.centerLeft,
                 child: GestureDetector(
                   onTap: () {
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                        content: Text('Forgot PIN tapped')));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Forgot PIN tapped')),
+                    );
                   },
                   child: const Padding(
                     padding: EdgeInsets.only(left: 4, top: 8),

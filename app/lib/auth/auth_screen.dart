@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
-import 'package:wave_pool/api/api_client.dart';
 import 'package:wave_pool/auth/auth_service.dart';
 import 'package:wave_pool/auth/widgets/phone_input.dart';
 import 'package:wave_pool/auth/widgets/pin_input.dart';
@@ -35,9 +34,9 @@ class AuthScreen extends HookWidget {
         }
       } catch (e) {
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(e.toString())),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(e.toString())));
         }
       } finally {
         isLoading.value = false;
@@ -72,10 +71,7 @@ class AuthScreen extends HookWidget {
               ),
             ],
           ),
-          if (isLoading.value)
-            const Center(
-              child: CircularProgressIndicator(),
-            ),
+          if (isLoading.value) const Center(child: CircularProgressIndicator()),
         ],
       ),
     );

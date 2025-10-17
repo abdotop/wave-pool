@@ -57,10 +57,7 @@ class PhoneNumberInput extends HookWidget {
                           fit: BoxFit.cover,
                         ),
                         const SizedBox(width: 8),
-                        const Text(
-                          '+221',
-                          style: TextStyle(fontSize: 18),
-                        ),
+                        const Text('+221', style: TextStyle(fontSize: 18)),
                         const SizedBox(width: 6),
                         Container(
                           width: 1,
@@ -119,8 +116,9 @@ class PhoneNumberInput extends HookWidget {
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     elevation: 0,
-                    backgroundColor:
-                        isValid ? const Color(0xFFB3E5FC) : Colors.grey[200],
+                    backgroundColor: isValid
+                        ? const Color(0xFFB3E5FC)
+                        : Colors.grey[200],
                     foregroundColor: Colors.black,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(

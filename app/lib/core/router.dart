@@ -15,15 +15,18 @@ class AppRouter {
     routes: <GoRoute>[
       GoRoute(
         path: '/splash',
-        builder: (BuildContext context, GoRouterState state) => const SplashScreen(),
+        builder: (BuildContext context, GoRouterState state) =>
+            const SplashScreen(),
       ),
       GoRoute(
         path: '/auth',
-        builder: (BuildContext context, GoRouterState state) => const AuthScreen(),
+        builder: (BuildContext context, GoRouterState state) =>
+            const AuthScreen(),
       ),
       GoRoute(
         path: '/dashboard',
-        builder: (BuildContext context, GoRouterState state) => const DashboardScreen(),
+        builder: (BuildContext context, GoRouterState state) =>
+            const DashboardScreen(),
       ),
     ],
     redirect: (BuildContext context, GoRouterState state) async {

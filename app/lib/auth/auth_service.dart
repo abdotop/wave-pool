@@ -8,13 +8,13 @@ class AuthService {
   final String _baseUrl;
 
   AuthService(this._secureStorageService, this._client, {String? baseUrl})
-      : _baseUrl = baseUrl ?? 'http://localhost:8080/api/v1';
+    : _baseUrl = baseUrl ?? 'http://11.11.90.51:8081/api/v1';
 
   Future<void> authenticate(String phone, String pin) async {
     final response = await _client.post(
       Uri.parse('$_baseUrl/auth'),
       headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'phone': '221$phone', 'pin': pin}),
+      body: jsonEncode({'phone': '+221$phone', 'pin': pin}),
     );
 
     if (response.statusCode == 201) {

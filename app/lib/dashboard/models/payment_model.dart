@@ -16,8 +16,4 @@ class Payment {
   });
 }
 
-enum PaymentStatus {
-  completed,
-  pending,
-  failed,
-}
+enum PaymentStatus { completed, pending, failed }

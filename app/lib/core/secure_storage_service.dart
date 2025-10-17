@@ -15,7 +15,10 @@ class SecureStorageService {
     final expiresAt = DateTime.now().add(Duration(seconds: expiresIn));
     await _storage.write(key: _accessTokenKey, value: accessToken);
     await _storage.write(key: _refreshTokenKey, value: refreshToken);
-    await _storage.write(key: _expiresAtKey, value: expiresAt.toIso8601String());
+    await _storage.write(
+      key: _expiresAtKey,
+      value: expiresAt.toIso8601String(),
+    );
   }
 
   Future<String?> getAccessToken() async {
