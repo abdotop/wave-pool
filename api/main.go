@@ -108,6 +108,8 @@ func main() {
 	router.Handle("GET /v1/checkout/sessions", api.APIKeyAuthMiddleware("checkout")(http.HandlerFunc(api.GetCheckoutSessionByTxID)))
 	router.Handle("GET /v1/checkout/sessions/search", api.APIKeyAuthMiddleware("checkout")(http.HandlerFunc(api.SearchCheckoutSessions)))
 	router.Handle("POST /v1/checkout/sessions/{session_id}/refund", api.APIKeyAuthMiddleware("checkout")(http.HandlerFunc(api.RefundCheckoutSession)))
+	router.Handle("POST /v1/checkout/sessions/{session_id}/expire", api.APIKeyAuthMiddleware("checkout")(http.HandlerFunc(api.ExpireCheckoutSession)))
+
 	server := &http.Server{
 		Addr:         ":" + cmp.Or(os.Getenv("PORT"), "8080"),
 		Handler:      router,

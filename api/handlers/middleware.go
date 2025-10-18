@@ -24,6 +24,7 @@ const (
 )
 
 func returnError(w http.ResponseWriter, payload domain.LastPaymentError, statusCode int) {
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
 	json.NewEncoder(w).Encode(payload)
 }
