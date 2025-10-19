@@ -89,6 +89,51 @@ func (q *Queries) CreateCheckoutSession(ctx context.Context, arg CreateCheckoutS
 	return i, err
 }
 
+const createPayment = `-- name: CreatePayment :one
+INSERT INTO payments (
+    id,
+    session_id,
+    amount,
+    currency,
+    status,
+    failure_reason
+) VALUES (
+    $1, $2, $3, $4, $5, $6
+) RETURNING id, session_id, amount, currency, status, failure_reason, completed_at, created_at
+`
+
+type CreatePaymentParams struct {
+	ID            string      `json:"id"`
+	SessionID     string      `json:"session_id"`
+	Amount        string      `json:"amount"`
+	Currency      string      `json:"currency"`
+	Status        string      `json:"status"`
+	FailureReason pgtype.Text `json:"failure_reason"`
+}
+
+func (q *Queries) CreatePayment(ctx context.Context, arg CreatePaymentParams) (Payment, error) {
+	row := q.db.QueryRow(ctx, createPayment,
+		arg.ID,
+		arg.SessionID,
+		arg.Amount,
+		arg.Currency,
+		arg.Status,
+		arg.FailureReason,
+	)
+	var i Payment
+	err := row.Scan(
+		&i.ID,
+		&i.SessionID,
+		&i.Amount,
+		&i.Currency,
+		&i.Status,
+		&i.FailureReason,
+		&i.CompletedAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const expireCheckoutSession = `-- name: ExpireCheckoutSession :exec
 UPDATE checkout_sessions
 SET    status = $2,
@@ -106,6 +151,44 @@ type ExpireCheckoutSessionParams struct {
 func (q *Queries) ExpireCheckoutSession(ctx context.Context, arg ExpireCheckoutSessionParams) error {
 	_, err := q.db.Exec(ctx, expireCheckoutSession, arg.ID, arg.Status, arg.WhenCompleted)
 	return err
+}
+
+const failCheckoutSession = `-- name: FailCheckoutSession :one
+UPDATE checkout_sessions
+SET    payment_status = 'cancelled',
+       last_payment_error = $2
+WHERE  id = $1
+RETURNING id, business_id, amount, currency, client_reference, aggregated_merchant_id, status, error_url, success_url, restrict_payer_mobile, wave_launch_url, transaction_id, payment_status, last_payment_error, expires_at, when_completed, when_created
+`
+
+type FailCheckoutSessionParams struct {
+	ID               string `json:"id"`
+	LastPaymentError []byte `json:"last_payment_error"`
+}
+
+func (q *Queries) FailCheckoutSession(ctx context.Context, arg FailCheckoutSessionParams) (CheckoutSession, error) {
+	row := q.db.QueryRow(ctx, failCheckoutSession, arg.ID, arg.LastPaymentError)
+	var i CheckoutSession
+	err := row.Scan(
+		&i.ID,
+		&i.BusinessID,
+		&i.Amount,
+		&i.Currency,
+		&i.ClientReference,
+		&i.AggregatedMerchantID,
+		&i.Status,
+		&i.ErrorUrl,
+		&i.SuccessUrl,
+		&i.RestrictPayerMobile,
+		&i.WaveLaunchUrl,
+		&i.TransactionID,
+		&i.PaymentStatus,
+		&i.LastPaymentError,
+		&i.ExpiresAt,
+		&i.WhenCompleted,
+		&i.WhenCreated,
+	)
+	return i, err
 }
 
 const getAPIKeyByPrefixAndSecret = `-- name: GetAPIKeyByPrefixAndSecret :one
@@ -163,6 +246,36 @@ type GetCheckoutSessionParams struct {
 
 func (q *Queries) GetCheckoutSession(ctx context.Context, arg GetCheckoutSessionParams) (CheckoutSession, error) {
 	row := q.db.QueryRow(ctx, getCheckoutSession, arg.ID, arg.BusinessID)
+	var i CheckoutSession
+	err := row.Scan(
+		&i.ID,
+		&i.BusinessID,
+		&i.Amount,
+		&i.Currency,
+		&i.ClientReference,
+		&i.AggregatedMerchantID,
+		&i.Status,
+		&i.ErrorUrl,
+		&i.SuccessUrl,
+		&i.RestrictPayerMobile,
+		&i.WaveLaunchUrl,
+		&i.TransactionID,
+		&i.PaymentStatus,
+		&i.LastPaymentError,
+		&i.ExpiresAt,
+		&i.WhenCompleted,
+		&i.WhenCreated,
+	)
+	return i, err
+}
+
+const getCheckoutSessionByID = `-- name: GetCheckoutSessionByID :one
+SELECT id, business_id, amount, currency, client_reference, aggregated_merchant_id, status, error_url, success_url, restrict_payer_mobile, wave_launch_url, transaction_id, payment_status, last_payment_error, expires_at, when_completed, when_created FROM checkout_sessions
+WHERE id = $1
+`
+
+func (q *Queries) GetCheckoutSessionByID(ctx context.Context, id string) (CheckoutSession, error) {
+	row := q.db.QueryRow(ctx, getCheckoutSessionByID, id)
 	var i CheckoutSession
 	err := row.Scan(
 		&i.ID,
@@ -270,6 +383,40 @@ func (q *Queries) SearchCheckoutSessions(ctx context.Context, arg SearchCheckout
 		return nil, err
 	}
 	return items, nil
+}
+
+const succeedCheckoutSession = `-- name: SucceedCheckoutSession :one
+UPDATE checkout_sessions
+SET    status = 'complete',
+       payment_status = 'succeeded',
+       when_completed = now()
+WHERE  id = $1
+RETURNING id, business_id, amount, currency, client_reference, aggregated_merchant_id, status, error_url, success_url, restrict_payer_mobile, wave_launch_url, transaction_id, payment_status, last_payment_error, expires_at, when_completed, when_created
+`
+
+func (q *Queries) SucceedCheckoutSession(ctx context.Context, id string) (CheckoutSession, error) {
+	row := q.db.QueryRow(ctx, succeedCheckoutSession, id)
+	var i CheckoutSession
+	err := row.Scan(
+		&i.ID,
+		&i.BusinessID,
+		&i.Amount,
+		&i.Currency,
+		&i.ClientReference,
+		&i.AggregatedMerchantID,
+		&i.Status,
+		&i.ErrorUrl,
+		&i.SuccessUrl,
+		&i.RestrictPayerMobile,
+		&i.WaveLaunchUrl,
+		&i.TransactionID,
+		&i.PaymentStatus,
+		&i.LastPaymentError,
+		&i.ExpiresAt,
+		&i.WhenCompleted,
+		&i.WhenCreated,
+	)
+	return i, err
 }
 
 const updateCheckoutPaymentStatus = `-- name: UpdateCheckoutPaymentStatus :exec

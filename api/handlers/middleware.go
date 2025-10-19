@@ -3,7 +3,6 @@ package handlers
 import (
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -22,12 +21,6 @@ const (
 	BusinessNameKey contextKey = "business_name"
 	UserIDKey       contextKey = "user_id"
 )
-
-func returnError(w http.ResponseWriter, payload domain.LastPaymentError, statusCode int) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(statusCode)
-	json.NewEncoder(w).Encode(payload)
-}
 
 // APIKeyAuthMiddleware validates the API key provided in the Authorization header.
 func (api *API) APIKeyAuthMiddleware(requiredScope string) func(http.Handler) http.Handler {

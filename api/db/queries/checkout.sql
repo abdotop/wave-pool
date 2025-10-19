@@ -22,6 +22,10 @@ INSERT INTO checkout_sessions (
 SELECT * FROM checkout_sessions
 WHERE id = $1 AND business_id = $2;
 
+-- name: GetCheckoutSessionByID :one
+SELECT * FROM checkout_sessions
+WHERE id = $1;
+
 -- name: GetCheckoutSessionByTxID :one
 SELECT * FROM checkout_sessions
 WHERE transaction_id = $1 AND business_id = $2
@@ -43,7 +47,34 @@ UPDATE checkout_sessions
 SET    status = $2,
        when_completed = $3
 WHERE  id = $1
-  AND  status = 'open'; 
+  AND  status = 'open';
+
+-- name: SucceedCheckoutSession :one
+UPDATE checkout_sessions
+SET    status = 'complete',
+       payment_status = 'succeeded',
+       when_completed = now()
+WHERE  id = $1
+RETURNING *;
+
+-- name: FailCheckoutSession :one
+UPDATE checkout_sessions
+SET    payment_status = 'cancelled',
+       last_payment_error = $2
+WHERE  id = $1
+RETURNING *;
+
+-- name: CreatePayment :one
+INSERT INTO payments (
+    id,
+    session_id,
+    amount,
+    currency,
+    status,
+    failure_reason
+) VALUES (
+    $1, $2, $3, $4, $5, $6
+) RETURNING *;
 
 -- name: GetAPIKeyByPrefixAndSecret :one
 SELECT k.*, b.id as business_id_alias, b.name as business_name

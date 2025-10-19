@@ -4,7 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
-	"net"
+	"log"
 	"net/http"
 	"net/url"
 	"time"
@@ -12,7 +12,6 @@ import (
 	"github.com/abdotop/wave-pool/db/sqlc"
 	"github.com/abdotop/wave-pool/domain"
 	"github.com/segmentio/ksuid"
-	"golang.org/x/crypto/argon2"
 )
 
 type webhookPayload struct {
@@ -42,25 +41,30 @@ type webhookResponse struct {
 
 // IsURL checks if a string is a valid URL.
 func IsURL(s string) bool {
+	log.Println("Validating URL:", s)
 	u, err := url.ParseRequestURI(s)
 	if err != nil {
+		log.Println("Invalid URL:", s)
 		return false
 	}
 
 	if u.Scheme != "http" && u.Scheme != "https" {
+		log.Println("Invalid URL scheme:", u.Scheme)
 		return false
 	}
 
-	ips, err := net.LookupIP(u.Hostname())
-	if err != nil {
-		return false
-	}
+	// ips, err := net.LookupIP(u.Hostname())
+	// if err != nil {
+	// 	log.Println("Failed to lookup IP for hostname:", u.Hostname())
+	// 	return false
+	// }
 
-	for _, ip := range ips {
-		if ip.IsPrivate() || ip.IsLoopback() {
-			return false
-		}
-	}
+	// for _, ip := range ips {
+	// 	if ip.IsPrivate() || ip.IsLoopback() {
+	// 		log.Println("URL resolves to private or loopback IP:", ip.String())
+	// 		return false
+	// 	}
+	// }
 
 	return true
 }
@@ -99,20 +103,16 @@ func (api *API) CreateWebhook(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to generate secret key", http.StatusInternalServerError)
 		return
 	}
-	secretKey := base64.RawURLEncoding.EncodeToString(secretBytes)
+	secretKey := "wave_sn_WHS_" + base64.RawURLEncoding.EncodeToString(secretBytes)
 
 	webhoockID := ksuid.New().String()
-	// Hash the secret key
-	salt := []byte(webhoockID)
-	hashedSecret := argon2.IDKey([]byte(secretKey), salt, 1, 64*1024, 4, 32)
-	hashedSecretStr := base64.RawURLEncoding.EncodeToString(hashedSecret)
 
 	webhook, err := api.db.CreateWebhook(r.Context(), sqlc.CreateWebhookParams{
 		ID:              webhoockID,
 		BusinessID:      business.ID,
 		Url:             payload.URL,
 		SigningStrategy: payload.SigningStrategy.String(),
-		Secret:          hashedSecretStr,
+		Secret:          secretKey,
 		Events:          payload.Events,
 		Status:          domain.WebhookStatusActive.String(),
 	})
@@ -126,7 +126,7 @@ func (api *API) CreateWebhook(w http.ResponseWriter, r *http.Request) {
 		BusinessID:      webhook.BusinessID,
 		URL:             webhook.Url,
 		SigningStrategy: webhook.SigningStrategy,
-		Secret:          webhook.Secret,
+		Secret:          secretKey,
 		Events:          webhook.Events,
 		Status:          webhook.Status,
 		CreatedAt:       webhook.CreatedAt.Time,

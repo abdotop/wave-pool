@@ -43,6 +43,26 @@ func (q *Queries) CreateBusiness(ctx context.Context, arg CreateBusinessParams) 
 	return i, err
 }
 
+const getBusinessByID = `-- name: GetBusinessByID :one
+SELECT id, owner_id, name, country, currency, created_at
+FROM business
+WHERE id = $1
+`
+
+func (q *Queries) GetBusinessByID(ctx context.Context, id string) (Business, error) {
+	row := q.db.QueryRow(ctx, getBusinessByID, id)
+	var i Business
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerID,
+		&i.Name,
+		&i.Country,
+		&i.Currency,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getBusinessByOwnerID = `-- name: GetBusinessByOwnerID :one
 SELECT id, owner_id, name, country, currency, created_at
 FROM business
