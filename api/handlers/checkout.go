@@ -80,7 +80,7 @@ func (api *API) CreateCheckoutSession(w http.ResponseWriter, r *http.Request) {
 	expiresAt := now.Add(30 * time.Minute)
 
 	baseLaunch := cmp.Or(os.Getenv("WAVE_LAUNCH_URL"), "http://localhost:"+cmp.Or(os.Getenv("PORT"), "8080"))
-	waveLaunchURL := fmt.Sprintf("%s/c/cos_%s", baseLaunch, sessionID)
+	waveLaunchURL := fmt.Sprintf("%s/c/cos_%s?a=%s&c=%s&m=%s", baseLaunch, sessionID, req.Amount, req.Currency, businessName)
 
 	arg := sqlc.CreateCheckoutSessionParams{
 		ID:                   sessionID,
