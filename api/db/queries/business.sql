@@ -7,3 +7,8 @@ RETURNING *;
 SELECT *
 FROM business
 WHERE owner_id = $1;
+
+-- name: GetBusinessByID :one
+SELECT *
+FROM business
+WHERE id = $1;

@@ -305,7 +305,7 @@ export function SelectApisModal() {
 
 function AddWebhookModal() {
   const [webhookUrl, setWebhookUrl] = useState("");
-  const [securityStrategy, setSecurityStrategy] = useState("SIGNING_SECRET");
+  const [securityStrategy, setSecurityStrategy] = useState("signing_secret");
   const [eventSubscriptions, setEventSubscriptions] = useState({
     "b2b.payment_received": false,
     "b2b.payment_failed": false,
@@ -346,7 +346,7 @@ function AddWebhookModal() {
         await webhooks.fetch(undefined, await options());
         // Reset form fields
         setWebhookUrl("");
-        setSecurityStrategy("SIGNING_SECRET");
+        setSecurityStrategy("signing_secret");
         setEventSubscriptions({
           "b2b.payment_received": false,
           "b2b.payment_failed": false,
@@ -397,8 +397,8 @@ function AddWebhookModal() {
               <input
                 type="radio"
                 name="security"
-                value="SIGNING_SECRET"
-                checked={securityStrategy === "SIGNING_SECRET"}
+                value="signing_secret"
+                checked={securityStrategy === "signing_secret"}
                 onChange={(e) =>
                   setSecurityStrategy((e.target as HTMLInputElement).value)}
                 className="radio radio-lg border-2 checked:bg-black"
@@ -409,8 +409,8 @@ function AddWebhookModal() {
               <input
                 type="radio"
                 name="security"
-                value="SHARED_SECRET"
-                checked={securityStrategy === "SHARED_SECRET"}
+                value="shared_secret"
+                checked={securityStrategy === "shared_secret"}
                 onChange={(e) =>
                   setSecurityStrategy((e.target as HTMLInputElement).value)}
                 className="radio radio-lg border-2 checked:bg-black"

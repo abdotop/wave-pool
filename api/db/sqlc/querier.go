@@ -12,14 +12,18 @@ type Querier interface {
 	CreateAPIKey(ctx context.Context, arg CreateAPIKeyParams) (ApiKey, error)
 	CreateBusiness(ctx context.Context, arg CreateBusinessParams) (Business, error)
 	CreateCheckoutSession(ctx context.Context, arg CreateCheckoutSessionParams) (CheckoutSession, error)
+	CreatePayment(ctx context.Context, arg CreatePaymentParams) (Payment, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	CreateWebhook(ctx context.Context, arg CreateWebhookParams) (Webhook, error)
 	DeleteWebhook(ctx context.Context, id string) error
 	ExpireCheckoutSession(ctx context.Context, arg ExpireCheckoutSessionParams) error
+	FailCheckoutSession(ctx context.Context, arg FailCheckoutSessionParams) (CheckoutSession, error)
 	GetAPIKeyByID(ctx context.Context, id string) (ApiKey, error)
 	GetAPIKeyByPrefixAndSecret(ctx context.Context, arg GetAPIKeyByPrefixAndSecretParams) (GetAPIKeyByPrefixAndSecretRow, error)
+	GetBusinessByID(ctx context.Context, id string) (Business, error)
 	GetBusinessByOwnerID(ctx context.Context, ownerID string) (Business, error)
 	GetCheckoutSession(ctx context.Context, arg GetCheckoutSessionParams) (CheckoutSession, error)
+	GetCheckoutSessionByID(ctx context.Context, id string) (CheckoutSession, error)
 	GetCheckoutSessionByTxID(ctx context.Context, arg GetCheckoutSessionByTxIDParams) (CheckoutSession, error)
 	GetUserByID(ctx context.Context, id string) (User, error)
 	GetUserByPhone(ctx context.Context, phone string) (User, error)
@@ -28,6 +32,7 @@ type Querier interface {
 	ListWebhooksByBusinessID(ctx context.Context, businessID string) ([]Webhook, error)
 	RevokeAPIKey(ctx context.Context, arg RevokeAPIKeyParams) error
 	SearchCheckoutSessions(ctx context.Context, arg SearchCheckoutSessionsParams) ([]CheckoutSession, error)
+	SucceedCheckoutSession(ctx context.Context, id string) (CheckoutSession, error)
 	UpdateCheckoutPaymentStatus(ctx context.Context, arg UpdateCheckoutPaymentStatusParams) error
 	UpdateWebhook(ctx context.Context, arg UpdateWebhookParams) (Webhook, error)
 }

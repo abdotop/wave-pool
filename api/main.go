@@ -110,6 +110,11 @@ func main() {
 	router.Handle("POST /v1/checkout/sessions/{session_id}/refund", api.APIKeyAuthMiddleware("checkout")(http.HandlerFunc(api.RefundCheckoutSession)))
 	router.Handle("POST /v1/checkout/sessions/{session_id}/expire", api.APIKeyAuthMiddleware("checkout")(http.HandlerFunc(api.ExpireCheckoutSession)))
 
+	// Payment page
+	router.Handle("GET /c/{session_id}", http.HandlerFunc(api.PaymentPage))
+	router.Handle("POST /c/{session_id}/succeed", http.HandlerFunc(api.SucceedPayment))
+	router.Handle("POST /c/{session_id}/fail", http.HandlerFunc(api.FailPayment))
+
 	server := &http.Server{
 		Addr:         ":" + cmp.Or(os.Getenv("PORT"), "8080"),
 		Handler:      router,
